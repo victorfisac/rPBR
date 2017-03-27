@@ -21,6 +21,7 @@ Matrix MatrixTranslate(float x, float y, float z);          // Returns translati
 Matrix MatrixRotate(Vector3 axis, float angle);             // Returns rotation matrix for an angle around an specified axis (angle in radians)
 Matrix MatrixScale(float x, float y, float z);              // Returns scaling matrix
 Matrix MatrixMultiply(Matrix left, Matrix right);           // Returns two matrix multiplication
+void ClampFloat(float *value, float min, float max);        // Returns a clamped value between a range
 
 //----------------------------------------------------------------------------------
 // Functions Definition
@@ -209,4 +210,11 @@ Matrix MatrixMultiply(Matrix left, Matrix right)
     result.m15 = right.m12*left.m3 + right.m13*left.m7 + right.m14*left.m11 + right.m15*left.m15;
 
     return result;
+}
+
+// Returns a clamped value between a range
+void ClampFloat(float *value, float min, float max)
+{
+    if (*value < min) *value = min;
+    else if (*value > max) *value = max;
 }

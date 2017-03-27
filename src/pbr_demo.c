@@ -141,8 +141,7 @@ int main()
                     for (int col = 0; col < MAX_COLUMNS; col++)
                     {
                         float rough = (float)col/(float)MAX_COLUMNS;
-                        if (rough < 0.05f) rough = 0.05f;
-                        else if (rough > 1.0f) rough = 1.0f;
+                        ClampFloat(&rough, 0.05f, 1.0f);
 
                         float shaderRoughness[1] = { rough };
                         SetShaderValue(dwarf.material.shader, shaderRoughnessLoc, shaderRoughness, 1);
