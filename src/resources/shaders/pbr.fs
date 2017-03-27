@@ -1,4 +1,5 @@
 #version 330
+#define     MAX_LIGHTS      4
 
 // Input vertex attributes (from vertex shader)
 in vec2 fragTexCoord;
@@ -12,8 +13,8 @@ uniform float roughness;
 uniform float ao;
 
 // Lighting parameters
-uniform vec3 lightPos;
-uniform vec3 lightColor;
+uniform vec3 lightPos[MAX_LIGHTS];
+uniform vec3 lightColor[MAX_LIGHTS];
 
 // Other parameters
 uniform vec3 viewPos;
@@ -21,6 +22,11 @@ const float PI = 3.14159265359;
 
 // Output fragment color
 out vec4 finalColor;
+
+float DistributionGGX(vec3 N, vec3 H, float roughness);
+float GeometrySchlickGGX(float NdotV, float roughness);
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
+vec3 fresnelSchlick(float cosTheta, vec3 F0);
 
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
@@ -72,29 +78,32 @@ void main()
     // Reflectance equation
     vec3 Lo = vec3(0.0);
 
-    // Calculate per-light radiance
-    vec3 light = normalize(lightPos - fragPos);
-    vec3 high = normalize(view + light);
-    float distance = length(lightPos - fragPos);
-    float attenuation = 1.0/(distance*distance);
-    vec3 radiance = lightColor*attenuation;
+    for (int i = 0; i < MAX_LIGHTS; i++)
+    {
+        // Calculate per-light radiance
+        vec3 light = normalize(lightPos[i] - fragPos);
+        vec3 high = normalize(view + light);
+        float distance = length(lightPos[i] - fragPos);
+        float attenuation = 1.0/(distance*distance);
+        vec3 radiance = lightColor[i]*attenuation;
 
-    // Cook-torrance brdf
-    float NDF = DistributionGGX(normal, high, roughness);
-    float G = GeometrySmith(normal, view, light, roughness);
-    vec3 F = fresnelSchlick(max(dot(high, view), 0.0), f0);
+        // Cook-torrance brdf
+        float NDF = DistributionGGX(normal, high, roughness);
+        float G = GeometrySmith(normal, view, light, roughness);
+        vec3 F = fresnelSchlick(max(dot(high, view), 0.0), f0);
 
-    vec3 kS = F;
-    vec3 kD = vec3(1.0) - kS;
-    kD *= 1.0 - metallic;
+        vec3 kS = F;
+        vec3 kD = vec3(1.0) - kS;
+        kD *= 1.0 - metallic;
 
-    vec3 nominator = NDF*G*F;
-    float denominator = 4*max(dot(normal, view), 0.0)*max(dot(normal, light), 0.0) + 0.001;
-    vec3 brdf = nominator/denominator;
+        vec3 nominator = NDF*G*F;
+        float denominator = 4*max(dot(normal, view), 0.0)*max(dot(normal, light), 0.0) + 0.001;
+        vec3 brdf = nominator/denominator;
 
-    // Add to outgoing radiance Lo
-    float NdotL = max(dot(normal, light), 0.0);
-    Lo += (kD*albedo/PI + brdf)*radiance*NdotL;
+        // Add to outgoing radiance Lo
+        float NdotL = max(dot(normal, light), 0.0);
+        Lo += (kD*albedo/PI + brdf)*radiance*NdotL;
+    }
 
     vec3 ambient = vec3(0.03)*albedo*ao;
     vec3 color = ambient + Lo;
