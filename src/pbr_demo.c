@@ -29,8 +29,8 @@ int main()
 {
     // Initialization
     //------------------------------------------------------------------------------
-    int screenWidth = 1366;
-    int screenHeight = 768;
+    int screenWidth = 1280;
+    int screenHeight = 720;
 
     // Enable Multi Sampling Anti Aliasing 4x (if available)
     SetConfigFlags(FLAG_MSAA_4X_HINT);
@@ -86,7 +86,7 @@ int main()
     for (int i = 0; i < MAX_LIGHTS; i++) SetShaderValue(dwarf.material.shader, shaderLightColorLoc[i], lightColor, 3);
 
     // Set our game to run at 60 frames-per-second
-    SetTargetFPS(60);                           
+    SetTargetFPS(60);
     //------------------------------------------------------------------------------
 
     // Main game loop

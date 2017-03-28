@@ -14,18 +14,82 @@
 //----------------------------------------------------------------------------------
 // Functions Declaration
 //----------------------------------------------------------------------------------
-Matrix MatrixIdentity(void);                                // Returns identity matrix
-void MatrixTranspose(Matrix *mat);                          // Transposes provided matrix
-void MatrixInvert(Matrix *mat);                             // Invert provided matrix
-Matrix MatrixTranslate(float x, float y, float z);          // Returns translation matrix
-Matrix MatrixRotate(Vector3 axis, float angle);             // Returns rotation matrix for an angle around an specified axis (angle in radians)
-Matrix MatrixScale(float x, float y, float z);              // Returns scaling matrix
-Matrix MatrixMultiply(Matrix left, Matrix right);           // Returns two matrix multiplication
-void ClampFloat(float *value, float min, float max);        // Returns a clamped value between a range
+void ClampFloat(float *value, float min, float max);                                // Returns a clamped value between a range
+Vector3 VectorSubtract(Vector3 v1, Vector3 v2);                                     // Substract two vectors
+Vector3 VectorCrossProduct(Vector3 v1, Vector3 v2);                                 // Calculate two vectors cross product
+void VectorNormalize(Vector3 *v);                                                   // Normalize provided vector
+float VectorLength(const Vector3 v);                                                // Calculate vector lenght
+Matrix MatrixIdentity(void);                                                        // Returns identity matrix
+void MatrixTranspose(Matrix *mat);                                                  // Transposes provided matrix
+void MatrixInvert(Matrix *mat);                                                     // Invert provided matrix
+Matrix MatrixTranslate(float x, float y, float z);                                  // Returns translation matrix
+Matrix MatrixRotate(Vector3 axis, float angle);                                     // Returns rotation matrix for an angle around an specified axis (angle in radians)
+Matrix MatrixScale(float x, float y, float z);                                      // Returns scaling matrix
+Matrix MatrixMultiply(Matrix left, Matrix right);                                   // Returns two matrix multiplication
+Matrix MatrixLookAt(Vector3 position, Vector3 target, Vector3 up);                  // Returns camera look-at matrix (view matrix)
+Matrix MatrixFrustum(double left, double right, double bottom, double top, double near, double far);    // Returns perspective projection matrix
+Matrix MatrixPerspective(double fovy, double aspect, double near, double far);      // Returns perspective projection matrix
 
 //----------------------------------------------------------------------------------
 // Functions Definition
 //----------------------------------------------------------------------------------
+// Returns a clamped value between a range
+void ClampFloat(float *value, float min, float max)
+{
+    if (*value < min) *value = min;
+    else if (*value > max) *value = max;
+}
+
+// Substract two vectors
+Vector3 VectorSubtract(Vector3 v1, Vector3 v2)
+{
+    Vector3 result;
+
+    result.x = v1.x - v2.x;
+    result.y = v1.y - v2.y;
+    result.z = v1.z - v2.z;
+
+    return result;
+}
+
+// Calculate two vectors cross product
+Vector3 VectorCrossProduct(Vector3 v1, Vector3 v2)
+{
+    Vector3 result;
+
+    result.x = v1.y*v2.z - v1.z*v2.y;
+    result.y = v1.z*v2.x - v1.x*v2.z;
+    result.z = v1.x*v2.y - v1.y*v2.x;
+
+    return result;
+}
+
+// Normalize provided vector
+void VectorNormalize(Vector3 *v)
+{
+    float length, ilength;
+
+    length = VectorLength(*v);
+
+    if (length == 0.0f) length = 1.0f;
+
+    ilength = 1.0f/length;
+
+    v->x *= ilength;
+    v->y *= ilength;
+    v->z *= ilength;
+}
+
+// Calculate vector lenght
+float VectorLength(const Vector3 v)
+{
+    float length;
+
+    length = sqrtf(v.x*v.x + v.y*v.y + v.z*v.z);
+
+    return length;
+}
+
 // Returns identity matrix
 Matrix MatrixIdentity(void)
 {
@@ -212,9 +276,75 @@ Matrix MatrixMultiply(Matrix left, Matrix right)
     return result;
 }
 
-// Returns a clamped value between a range
-void ClampFloat(float *value, float min, float max)
+// Returns camera look-at matrix (view matrix)
+Matrix MatrixLookAt(Vector3 eye, Vector3 target, Vector3 up)
 {
-    if (*value < min) *value = min;
-    else if (*value > max) *value = max;
+    Matrix result;
+
+    Vector3 z = VectorSubtract(eye, target);
+    VectorNormalize(&z);
+    Vector3 x = VectorCrossProduct(up, z);
+    VectorNormalize(&x);
+    Vector3 y = VectorCrossProduct(z, x);
+    VectorNormalize(&y);
+
+    result.m0 = x.x;
+    result.m1 = x.y;
+    result.m2 = x.z;
+    result.m3 = -((x.x*eye.x) + (x.y*eye.y) + (x.z*eye.z));
+    result.m4 = y.x;
+    result.m5 = y.y;
+    result.m6 = y.z;
+    result.m7 = -((y.x*eye.x) + (y.y*eye.y) + (y.z*eye.z));
+    result.m8 = z.x;
+    result.m9 = z.y;
+    result.m10 = z.z;
+    result.m11 = -((z.x*eye.x) + (z.y*eye.y) + (z.z*eye.z));
+    result.m12 = 0.0f;
+    result.m13 = 0.0f;
+    result.m14 = 0.0f;
+    result.m15 = 1.0f;
+
+    return result;
+}
+
+// Returns perspective projection matrix
+Matrix MatrixFrustum(double left, double right, double bottom, double top, double near, double far)
+{
+    Matrix result;
+
+    float rl = (right - left);
+    float tb = (top - bottom);
+    float fn = (far - near);
+
+    result.m0 = (near*2.0f)/rl;
+    result.m1 = 0.0f;
+    result.m2 = 0.0f;
+    result.m3 = 0.0f;
+
+    result.m4 = 0.0f;
+    result.m5 = (near*2.0f)/tb;
+    result.m6 = 0.0f;
+    result.m7 = 0.0f;
+
+    result.m8 = (right + left)/rl;
+    result.m9 = (top + bottom)/tb;
+    result.m10 = -(far + near)/fn;
+    result.m11 = -1.0f;
+
+    result.m12 = 0.0f;
+    result.m13 = 0.0f;
+    result.m14 = -(far*near*2.0f)/fn;
+    result.m15 = 0.0f;
+
+    return result;
+}
+
+// Returns perspective projection matrix
+Matrix MatrixPerspective(double fovy, double aspect, double near, double far)
+{
+    double top = near*tan(fovy*PI/360.0);
+    double right = top*aspect;
+
+    return MatrixFrustum(-right, right, -top, top, near, far);
 }
