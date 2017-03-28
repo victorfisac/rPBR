@@ -102,9 +102,67 @@ int main()
 
     // Set our game to run at 60 frames-per-second
     SetTargetFPS(60);
-    
+
     // Load HDR environment
     unsigned int hdrTexture = LoadHighDynamicRange("resources/textures/environment.hdr");
+    int equirectangularMapLoc = GetShaderLocation(cubeShader, "equirectangularMap");
+
+    // Set up framebuffer for skybox
+    unsigned int captureFBO, captureRBO;
+    glGenFramebuffers(1, &captureFBO);
+    glGenRenderbuffers(1, &captureRBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+    glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, captureRBO);
+
+    // Set up cubemap to render and attach to framebuffer
+    // NOTE: faces are stored with 16 bit floating point values
+    unsigned int envCubemap;
+    glGenTextures(1, &envCubemap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, envCubemap);
+    for (unsigned int i = 0; i < 6; ++i) glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 512, 512, 0, GL_RGB, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Create projection (transposed) and different views for each face
+    Matrix captureProjection = MatrixPerspective(90.0f*DEG2RAD, 1.0f, 0.01, 1000.0);
+    MatrixTranspose(&captureProjection);
+    Matrix captureViews[6] = {
+        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ 1.0f,  0.0f,  0.0f }, (Vector3){ 0.0f, -1.0f,  0.0f }),
+        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ -1.0f,  0.0f,  0.0f }, (Vector3){ 0.0f, -1.0f,  0.0f }),
+        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ 0.0f,  1.0f,  0.0f }, (Vector3){ 0.0f,  0.0f,  1.0f }),
+        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ 0.0f, -1.0f,  0.0f }, (Vector3){ 0.0f,  0.0f, -1.0f }),
+        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ 0.0f,  0.0f,  1.0f }, (Vector3){ 0.0f, -1.0f,  0.0f }),
+        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ 0.0f,  0.0f, -1.0f }, (Vector3){ 0.0f, -1.0f,  0.0f })
+    };
+
+    // Convert HDR equirectangular environment map to cubemap equivalent
+    glUseProgram(cubeShader.id);
+    glUniform1i(equirectangularMapLoc, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, hdrTexture);
+    SetShaderValueMatrix(cubeShader, GetShaderLocation(cubeShader, "projection"), captureProjection);
+
+    glViewport(0, 0, 512, 512); // Note: don't forget to configure the viewport to the capture dimensions
+    glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+
+    for (int i = 0; i < 6; i++)
+    {
+        SetShaderValueMatrix(cubeShader, GetShaderLocation(cubeShader, "view"), captureViews[i]);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, envCubemap, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        RenderCube(); // Renders a 1x1 cube
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // Then before rendering, configure the viewport to the actual screen dimensions
+    glViewport(0, 0, screenWidth, screenHeight);
     //------------------------------------------------------------------------------
 
     // Main game loop
