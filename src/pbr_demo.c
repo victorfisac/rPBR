@@ -62,6 +62,7 @@ int main()
     Model dwarf = LoadModel("resources/models/dwarf.obj");
     Shader pbrShader = LoadShader("resources/shaders/pbr.vs", "resources/shaders/pbr.fs");
     Shader cubeShader = LoadShader("resources/shaders/cubemap.vs", "resources/shaders/cubemap.fs");
+    Shader skyShader = LoadShader("resources/shaders/skybox.vs", "resources/shaders/skybox.fs");
 
     // Set up materials and lighting
     Material material = LoadDefaultMaterial();
@@ -102,6 +103,8 @@ int main()
 
     // Set our game to run at 60 frames-per-second
     SetTargetFPS(60);
+    glDepthFunc(GL_LEQUAL);
+    glDisable(GL_CULL_FACE);
 
     // Load HDR environment
     unsigned int hdrTexture = LoadHighDynamicRange("resources/textures/environment.hdr");
@@ -162,6 +165,11 @@ int main()
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // Then before rendering, configure the viewport to the actual screen dimensions
+    Matrix defaultProjection = MatrixPerspective(camera.fovy, (double)screenWidth/(double)screenHeight, 0.01, 1000.0);
+    MatrixTranspose(&defaultProjection);
+    SetShaderValueMatrix(cubeShader, GetShaderLocation(cubeShader, "projection"), defaultProjection);
+    SetShaderValueMatrix(skyShader, GetShaderLocation(skyShader, "projection"), defaultProjection);
+
     glViewport(0, 0, screenWidth, screenHeight);
     //------------------------------------------------------------------------------
 
@@ -242,21 +250,23 @@ int main()
                     DrawSphereWires(lightPosition[i], 0.025f, 16, 16, ORANGE);
                 }
 
-                // Calculate view matrix and send to cube shader
+                // Calculate view matrix for custom shaders
                 Matrix view = MatrixLookAt(camera.position, camera.target, camera.up);
+                
+                // Render hdr texture for testing purposes
                 SetShaderValueMatrix(cubeShader, GetShaderLocation(cubeShader, "view"), view);
-
-                // Calculate transposed projection and send to cube shader
-                Matrix projection = MatrixPerspective(camera.fovy, (double)screenWidth/(double)screenHeight, 0.01, 1000.0);
-                MatrixTranspose(&projection);
-                SetShaderValueMatrix(cubeShader, GetShaderLocation(cubeShader, "projection"), projection);
-
-                // Draw HDR skybox for testing purposes
-                BeginShaderMode(cubeShader);
-
-                    DrawCubeTextureI(hdrTexture, (Vector3){ 0, 0, 0 }, 1, 1, 1, RED);
-
-                EndShaderMode();
+                glUseProgram(cubeShader.id);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, hdrTexture);
+                RenderCube();
+                
+                // Render skybox (render as last to prevent overdraw)
+                SetShaderValueMatrix(skyShader, GetShaderLocation(skyShader, "view"), view);
+                glUseProgram(skyShader.id);
+                glUniform1i(GetShaderLocation(skyShader, "environmentMap"), 0);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_CUBE_MAP, envCubemap);
+                RenderCube();              
 
             End3dMode();
 
@@ -271,6 +281,7 @@ int main()
     // Unload external resources
     UnloadShader(pbrShader);
     UnloadShader(cubeShader);
+    UnloadShader(skyShader);
     UnloadModel(dwarf);
     UnloadHighDynamicRange(hdrTexture);
 
