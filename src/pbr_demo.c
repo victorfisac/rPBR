@@ -9,9 +9,16 @@
 //----------------------------------------------------------------------------------
 // Includes
 //----------------------------------------------------------------------------------
-#include "raylib.h"
-#include "pbrmath.h"        // Required for matrix and vectors math
-#include <string.h>         // Required for: strcpy()
+#include <stdlib.h>                 // Required for: exit()
+#include <stdio.h>                  // Required for: printf()
+#include <string.h>                 // Required for: strcpy()
+
+#include "raylib.h"                 // Required for raylib framework
+#include "pbrmath.h"                // Required for matrix and vectors math
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "external/stb_image.h"     // Required for image loading
+#include "external/glad.h"          // Required for OpenGL API
 
 //----------------------------------------------------------------------------------
 // Defines
@@ -21,6 +28,13 @@
 #define         MAX_COLUMNS         7               // Columns to render models
 #define         MODEL_SCALE         0.35f           // Model scale transformation for rendering
 #define         MODEL_OFFSET        0.35f           // Distance between models for rendering
+
+//----------------------------------------------------------------------------------
+// Function Declarations
+//----------------------------------------------------------------------------------
+unsigned int LoadHighDynamicRange(const char *filename);        // Loads a high dynamic range (HDR) format file as linear float and converts it to a texture returning its id
+void UnloadHighDynamicRange(unsigned int id);                   // Unloads a high dynamic range (HDR) created texture
+void RenderCube();                                              // RenderCube() Renders a 1x1 3D cube in NDC
 
 //----------------------------------------------------------------------------------
 // Main program
@@ -47,6 +61,7 @@ int main()
     // Load external resources
     Model dwarf = LoadModel("resources/models/dwarf.obj");
     Shader pbrShader = LoadShader("resources/shaders/pbr.vs", "resources/shaders/pbr.fs");
+    Shader cubeShader = LoadShader("resources/shaders/cubemap.vs", "resources/shaders/cubemap.fs");
 
     // Set up materials and lighting
     Material material = LoadDefaultMaterial();
@@ -87,6 +102,9 @@ int main()
 
     // Set our game to run at 60 frames-per-second
     SetTargetFPS(60);
+    
+    // Load HDR environment
+    unsigned int hdrTexture = LoadHighDynamicRange("resources/textures/environment.hdr");
     //------------------------------------------------------------------------------
 
     // Main game loop
@@ -128,9 +146,12 @@ int main()
         //--------------------------------------------------------------------------
         BeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            ClearBackground(DARKGRAY);
 
             Begin3dMode(camera);
+
+                // Draw ground grid
+                DrawGrid(10, 1.0f);
 
                 // Draw models grid with parametric metalness and roughness values
                 for (int rows = 0; rows < MAX_ROWS; rows++)
@@ -156,13 +177,28 @@ int main()
                     }
                 }
 
+                // Draw light gizmos
                 for (int i = 0; i < MAX_LIGHTS; i++)
                 {
                     DrawSphere(lightPosition[i], 0.025f, YELLOW);
                     DrawSphereWires(lightPosition[i], 0.025f, 16, 16, ORANGE);
                 }
 
-                DrawGrid(10, 1.0f);
+                // Calculate view matrix and send to cube shader
+                Matrix view = MatrixLookAt(camera.position, camera.target, camera.up);
+                SetShaderValueMatrix(cubeShader, GetShaderLocation(cubeShader, "view"), view);
+
+                // Calculate transposed projection and send to cube shader
+                Matrix projection = MatrixPerspective(camera.fovy, (double)screenWidth/(double)screenHeight, 0.01, 1000.0);
+                MatrixTranspose(&projection);
+                SetShaderValueMatrix(cubeShader, GetShaderLocation(cubeShader, "projection"), projection);
+
+                // Draw HDR skybox for testing purposes
+                BeginShaderMode(cubeShader);
+
+                    DrawCubeTextureI(hdrTexture, (Vector3){ 0, 0, 0 }, 1, 1, 1, RED);
+
+                EndShaderMode();
 
             End3dMode();
 
@@ -176,11 +212,126 @@ int main()
     //------------------------------------------------------------------------------
     // Unload external resources
     UnloadShader(pbrShader);
+    UnloadShader(cubeShader);
     UnloadModel(dwarf);
+    UnloadHighDynamicRange(hdrTexture);
 
     // Close window and OpenGL context
     CloseWindow();
     //------------------------------------------------------------------------------
 
     return 0;
+}
+
+//----------------------------------------------------------------------------------
+// Function Definitions
+//----------------------------------------------------------------------------------
+// Loads a high dynamic range (HDR) format file as linear float and converts it to a texture returning its id
+unsigned int LoadHighDynamicRange(const char *filename)
+{
+    unsigned int hdrId;
+    
+    stbi_set_flip_vertically_on_load(true);
+    int width = 0, height = 0, nrComponents = 0;
+    float *data = stbi_loadf(filename, &width, &height, &nrComponents, 0);
+    
+    if (data)
+    {
+        glGenTextures(1, &hdrId);
+        glBindTexture(GL_TEXTURE_2D, hdrId);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, data); 
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        stbi_image_free(data);
+    }
+    
+    return hdrId;
+}
+
+// Unloads a high dynamic range (HDR) created texture
+void UnloadHighDynamicRange(unsigned int id)
+{
+    if (id != 0) glDeleteTextures(1, &id);
+}
+
+// RenderCube() Renders a 1x1 3D cube in NDC.
+GLuint cubeVAO = 0;
+GLuint cubeVBO = 0;
+void RenderCube()
+{
+    // Initialize (if necessary)
+    if (cubeVAO == 0)
+    {
+        GLfloat vertices[] = {
+            // Back face
+            -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f, // Bottom-left
+            1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f, // top-right
+            1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f, // bottom-right         
+            1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f,  // top-right
+            -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f,  // bottom-left
+            -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f,// top-left
+            // Front face
+            -1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f, // bottom-left
+            1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f,  // bottom-right
+            1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f,  // top-right
+            1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f, // top-right
+            -1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f,  // top-left
+            -1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f,  // bottom-left
+            // Left face
+            -1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-right
+            -1.0f,  1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f, // top-left
+            -1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f,  // bottom-left
+            -1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-left
+            -1.0f, -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f,  // bottom-right
+            -1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-right
+            // Right face
+            1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-left
+            1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-right
+            1.0f,  1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f, // top-right         
+            1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f,  // bottom-right
+            1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f,  // top-left
+            1.0f, -1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f, // bottom-left     
+            // Bottom face
+            -1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f, // top-right
+            1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f, // top-left
+            1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f,// bottom-left
+            1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f, // bottom-left
+            -1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f, // bottom-right
+            -1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f, // top-right
+            // Top face
+            -1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f,// top-left
+            1.0f,  1.0f , 1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f, // bottom-right
+            1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f, // top-right     
+            1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f, // bottom-right
+            -1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f,// top-left
+            -1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f // bottom-left        
+        };
+        
+        glGenVertexArrays(1, &cubeVAO);
+        glGenBuffers(1, &cubeVBO);
+        
+        // Fill buffer
+        glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        
+        // Link vertex attributes
+        glBindVertexArray(cubeVAO);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid*)(6 * sizeof(GLfloat)));
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
+    
+    // Render Cube
+    glBindVertexArray(cubeVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    glBindVertexArray(0);
 }
