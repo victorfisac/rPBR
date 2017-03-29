@@ -14,7 +14,11 @@ void main()
 {
     // Calculate fragment position based on model transformations
     fragPos = vertexPosition;
+    
+    // Remove translation from the view matrix
+    mat4 rotView = mat4(mat3(view));
+    vec4 clipPos = projection*rotView*vec4(vertexPosition, 1.0);
 
     // Calculate final vertex position
-    gl_Position = projection*view*vec4(vertexPosition, 1.0);
+    gl_Position = clipPos.xyww;
 }
