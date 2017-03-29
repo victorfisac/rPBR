@@ -57,19 +57,21 @@ int main()
     Camera camera = {{ 3.75f, 2.25f, 3.75f }, { 1.0f, 0.0f, 1.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f };
     SetCameraMode(camera, CAMERA_FREE);
     int selectedLight = 0;
+    int renderMode = 0;
 
     // Load external resources
     Model dwarf = LoadModel("resources/models/dwarf.obj");
     Shader pbrShader = LoadShader("resources/shaders/pbr.vs", "resources/shaders/pbr.fs");
     Shader cubeShader = LoadShader("resources/shaders/cubemap.vs", "resources/shaders/cubemap.fs");
     Shader skyShader = LoadShader("resources/shaders/skybox.vs", "resources/shaders/skybox.fs");
+    Shader irradianceShader = LoadShader("resources/shaders/irradiance.vs", "resources/shaders/irradiance.fs");
 
     // Set up materials and lighting
     Material material = LoadDefaultMaterial();
     material.shader = pbrShader;
     dwarf.material = material;
 
-    // Get shader locations
+    // Get PBR shader locations
     int shaderViewLoc = GetShaderLocation(dwarf.material.shader, "viewPos");
     int shaderModelLoc = GetShaderLocation(dwarf.material.shader, "mMatrix");
     int shaderAlbedoLoc = GetShaderLocation(dwarf.material.shader, "albedo");
@@ -93,6 +95,21 @@ int main()
         shaderLightColorLoc[i] = GetShaderLocation(dwarf.material.shader, lightColorName);
     }
 
+    // Get cubemap shader locations
+    int equirectangularMapLoc = GetShaderLocation(cubeShader, "equirectangularMap");
+    int cubeProjectionLoc = GetShaderLocation(cubeShader, "projection");
+    int cubeViewLoc = GetShaderLocation(cubeShader, "view");
+
+    // Get skybox shader locations
+    int skyMapLoc = GetShaderLocation(skyShader, "environmentMap");
+    int skyProjectionLoc = GetShaderLocation(skyShader, "projection");
+    int skyViewLoc = GetShaderLocation(skyShader, "view");
+
+    // Get irradiance shader locations
+    int irradianceMapLoc = GetShaderLocation(irradianceShader, "environmentMap");
+    int irradianceProjectionLoc = GetShaderLocation(irradianceShader, "projection");
+    int irradianceViewLoc = GetShaderLocation(irradianceShader, "view");
+
     // Set up shader constant values
     float shaderAlbedo[3] = { 0.5f, 0.0f, 0.0f };
     SetShaderValue(dwarf.material.shader, shaderAlbedoLoc, shaderAlbedo, 3);
@@ -107,8 +124,7 @@ int main()
     glDisable(GL_CULL_FACE);
 
     // Load HDR environment
-    unsigned int hdrTexture = LoadHighDynamicRange("resources/textures/skybox.hdr");
-    int equirectangularMapLoc = GetShaderLocation(cubeShader, "equirectangularMap");
+    unsigned int skyTex = LoadHighDynamicRange("resources/textures/skybox.hdr");
 
     // Set up framebuffer for skybox
     unsigned int captureFBO, captureRBO;
@@ -121,10 +137,10 @@ int main()
 
     // Set up cubemap to render and attach to framebuffer
     // NOTE: faces are stored with 16 bit floating point values
-    unsigned int envCubemap;
-    glGenTextures(1, &envCubemap);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, envCubemap);
-    for (unsigned int i = 0; i < 6; ++i) glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 512, 512, 0, GL_RGB, GL_FLOAT, NULL);
+    unsigned int cubeMap;
+    glGenTextures(1, &cubeMap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
+    for (unsigned int i = 0; i < 6; i++) glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 512, 512, 0, GL_RGB, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
@@ -147,28 +163,63 @@ int main()
     glUseProgram(cubeShader.id);
     glUniform1i(equirectangularMapLoc, 0);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, hdrTexture);
-    SetShaderValueMatrix(cubeShader, GetShaderLocation(cubeShader, "projection"), captureProjection);
+    glBindTexture(GL_TEXTURE_2D, skyTex);
+    SetShaderValueMatrix(cubeShader, cubeProjectionLoc, captureProjection);
 
-    glViewport(0, 0, 512, 512);   // Note: don't forget to configure the viewport to the capture dimensions
+    glViewport(0, 0, 512, 512);     // Note: don't forget to configure the viewport to the capture dimensions
     glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
 
-    for (int i = 0; i < 6; i++)
+    for (unsigned int i = 0; i < 6; i++)
     {
-        SetShaderValueMatrix(cubeShader, GetShaderLocation(cubeShader, "view"), captureViews[i]);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, envCubemap, 0);
+        SetShaderValueMatrix(cubeShader, cubeViewLoc, captureViews[i]);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, cubeMap, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        RenderCube(); // Renders a 1x1 cube
+        RenderCube();
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+    // Create an irradiance cubemap, and re-scale capture FBO to irradiance scale
+    unsigned int irradianceMap;
+    glGenTextures(1, &irradianceMap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMap);
+    for (unsigned int i = 0; i < 6; i++) glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 32, 32, 0, GL_RGB, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+    glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 32, 32);
+
+    // Solve diffuse integral by convolution to create an irradiance cubemap
+    glUseProgram(irradianceShader.id);
+    glUniform1i(irradianceMapLoc, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
+    SetShaderValueMatrix(irradianceShader, irradianceProjectionLoc, captureProjection);
+
+    glViewport(0, 0, 32, 32);   // Note: don't forget to configure the viewport to the capture dimensions
+    glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+
+    for (unsigned int i = 0; i < 6; i++)
+    {
+        SetShaderValueMatrix(irradianceShader, irradianceViewLoc, captureViews[i]);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, irradianceMap, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        RenderCube();
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);  
+
     // Then before rendering, configure the viewport to the actual screen dimensions
     Matrix defaultProjection = MatrixPerspective(camera.fovy, (double)screenWidth/(double)screenHeight, 0.01, 1000.0);
     MatrixTranspose(&defaultProjection);
-    SetShaderValueMatrix(cubeShader, GetShaderLocation(cubeShader, "projection"), defaultProjection);
-    SetShaderValueMatrix(skyShader, GetShaderLocation(skyShader, "projection"), defaultProjection);
+    SetShaderValueMatrix(cubeShader, cubeProjectionLoc, defaultProjection);
+    SetShaderValueMatrix(skyShader, skyProjectionLoc, defaultProjection);
+    SetShaderValueMatrix(irradianceShader, irradianceProjectionLoc, defaultProjection);
 
     glViewport(0, 0, screenWidth, screenHeight);
     //------------------------------------------------------------------------------
@@ -194,6 +245,9 @@ int main()
         else if (IsKeyDown(KEY_LEFT)) lightPosition[selectedLight].x -= 0.1f;
         if (IsKeyDown('W')) lightPosition[selectedLight].y += 0.1f;
         else if (IsKeyDown('S')) lightPosition[selectedLight].y -= 0.1f;
+        
+        if (IsKeyPressed('O') && (renderMode < 2))renderMode++;
+        else if (IsKeyPressed('P') && (renderMode > 0)) renderMode--;
 
         // Update current light position
         for (int i = 0; i < MAX_LIGHTS; i++)
@@ -252,21 +306,40 @@ int main()
 
                 // Calculate view matrix for custom shaders
                 Matrix view = MatrixLookAt(camera.position, camera.target, camera.up);
-                
-                /* // Render hdr texture for testing purposes
-                SetShaderValueMatrix(cubeShader, GetShaderLocation(cubeShader, "view"), view);
-                glUseProgram(cubeShader.id);
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, hdrTexture);
-                RenderCube(); */
-                
-                // Render skybox (render as last to prevent overdraw)
-                SetShaderValueMatrix(skyShader, GetShaderLocation(skyShader, "view"), view);
-                glUseProgram(skyShader.id);
-                glUniform1i(GetShaderLocation(skyShader, "environmentMap"), 0);
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_CUBE_MAP, envCubemap);
-                RenderCube();              
+
+                switch (renderMode)
+                {
+                    case 0:
+                    {
+                        // Render hdr texture for testing purposes
+                        SetShaderValueMatrix(cubeShader, cubeViewLoc, view);
+                        glUseProgram(cubeShader.id);
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, skyTex);
+                        RenderCube();
+                    } break;
+                    case 1:
+                    {
+                        // Render skybox (render as last to prevent overdraw)
+                        SetShaderValueMatrix(skyShader, skyViewLoc, view);
+                        glUseProgram(skyShader.id);
+                        glUniform1i(skyMapLoc, 0);
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
+                        RenderCube();
+                    } break;
+                    case 2:
+                    {
+                        // Render skybox (render as last to prevent overdraw)
+                        SetShaderValueMatrix(irradianceShader, irradianceViewLoc, view);
+                        glUseProgram(irradianceShader.id);
+                        glUniform1i(irradianceMapLoc, 0);
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMap);
+                        RenderCube();
+                    } break;
+                    default: break;
+                }
 
             End3dMode();
 
@@ -282,8 +355,9 @@ int main()
     UnloadShader(pbrShader);
     UnloadShader(cubeShader);
     UnloadShader(skyShader);
+    UnloadShader(irradianceShader);
     UnloadModel(dwarf);
-    UnloadHighDynamicRange(hdrTexture);
+    UnloadHighDynamicRange(skyTex);
 
     // Close window and OpenGL context
     CloseWindow();
