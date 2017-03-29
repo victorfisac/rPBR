@@ -6,7 +6,7 @@ in vec3 fragPos;
 // Material parameters
 uniform sampler2D equirectangularMap;
 
-const vec2 invAtan = vec2(0.1591f, 0.3183f);
+const vec2 invAtan = vec2(0.1591, 0.3183);
 
 // Output fragment color
 out vec4 finalColor;

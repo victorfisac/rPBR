@@ -107,7 +107,7 @@ int main()
     glDisable(GL_CULL_FACE);
 
     // Load HDR environment
-    unsigned int hdrTexture = LoadHighDynamicRange("resources/textures/environment.hdr");
+    unsigned int hdrTexture = LoadHighDynamicRange("resources/textures/skybox.hdr");
     int equirectangularMapLoc = GetShaderLocation(cubeShader, "equirectangularMap");
 
     // Set up framebuffer for skybox
@@ -132,15 +132,15 @@ int main()
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     // Create projection (transposed) and different views for each face
-    Matrix captureProjection = MatrixPerspective(90.0f*DEG2RAD, 1.0f, 0.01, 1000.0);
+    Matrix captureProjection = MatrixPerspective(90.0f, 1.0f, 0.01, 1000.0);
     MatrixTranspose(&captureProjection);
     Matrix captureViews[6] = {
-        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ 1.0f,  0.0f,  0.0f }, (Vector3){ 0.0f, -1.0f,  0.0f }),
-        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ -1.0f,  0.0f,  0.0f }, (Vector3){ 0.0f, -1.0f,  0.0f }),
-        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ 0.0f,  1.0f,  0.0f }, (Vector3){ 0.0f,  0.0f,  1.0f }),
-        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ 0.0f, -1.0f,  0.0f }, (Vector3){ 0.0f,  0.0f, -1.0f }),
-        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ 0.0f,  0.0f,  1.0f }, (Vector3){ 0.0f, -1.0f,  0.0f }),
-        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ 0.0f,  0.0f, -1.0f }, (Vector3){ 0.0f, -1.0f,  0.0f })
+        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ 1.0f, 0.0f, 0.0f }, (Vector3){ 0.0f, -1.0f, 0.0f }),
+        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ -1.0f, 0.0f, 0.0f }, (Vector3){ 0.0f, -1.0f, 0.0f }),
+        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ 0.0f, 1.0f, 0.0f }, (Vector3){ 0.0f, 0.0f, 1.0f }),
+        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ 0.0f, -1.0f, 0.0f }, (Vector3){ 0.0f, 0.0f, -1.0f }),
+        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ 0.0f, 0.0f, 1.0f }, (Vector3){ 0.0f, -1.0f, 0.0f }),
+        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ 0.0f, 0.0f, -1.0f }, (Vector3){ 0.0f, -1.0f, 0.0f })
     };
 
     // Convert HDR equirectangular environment map to cubemap equivalent
@@ -150,7 +150,7 @@ int main()
     glBindTexture(GL_TEXTURE_2D, hdrTexture);
     SetShaderValueMatrix(cubeShader, GetShaderLocation(cubeShader, "projection"), captureProjection);
 
-    glViewport(0, 0, 512, 512); // Note: don't forget to configure the viewport to the capture dimensions
+    glViewport(0, 0, 512, 512);   // Note: don't forget to configure the viewport to the capture dimensions
     glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
 
     for (int i = 0; i < 6; i++)
@@ -253,12 +253,12 @@ int main()
                 // Calculate view matrix for custom shaders
                 Matrix view = MatrixLookAt(camera.position, camera.target, camera.up);
                 
-                // Render hdr texture for testing purposes
+                /* // Render hdr texture for testing purposes
                 SetShaderValueMatrix(cubeShader, GetShaderLocation(cubeShader, "view"), view);
                 glUseProgram(cubeShader.id);
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, hdrTexture);
-                RenderCube();
+                RenderCube(); */
                 
                 // Render skybox (render as last to prevent overdraw)
                 SetShaderValueMatrix(skyShader, GetShaderLocation(skyShader, "view"), view);
