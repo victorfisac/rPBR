@@ -112,7 +112,7 @@ int main()
     // Set up shader constant values
     glUseProgram(pbrShader.id);
     glUniform1i(glGetUniformLocation(pbrShader.id, "irradianceMap"), 0);
-    float shaderAlbedo[3] = { 0.5f, 0.0f, 0.0f };
+    float shaderAlbedo[3] = { 0.8f, 0.8f, 0.8f };
     SetShaderValue(dwarf.material.shader, shaderAlbedoLoc, shaderAlbedo, 3);
     float shaderAo[1] = { 1.0f };
     SetShaderValue(dwarf.material.shader, shaderAoLoc, shaderAo, 1);
