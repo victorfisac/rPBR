@@ -57,7 +57,6 @@ int main()
     Camera camera = {{ 3.75f, 2.25f, 3.75f }, { 1.0f, 0.0f, 1.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f };
     SetCameraMode(camera, CAMERA_FREE);
     int selectedLight = 0;
-    int renderMode = 0;
 
     // Load external resources
     Model dwarf = LoadModel("resources/models/dwarf.obj");
@@ -111,6 +110,8 @@ int main()
     int irradianceViewLoc = GetShaderLocation(irradianceShader, "view");
 
     // Set up shader constant values
+    glUseProgram(pbrShader.id);
+    glUniform1i(glGetUniformLocation(pbrShader.id, "irradianceMap"), 0);
     float shaderAlbedo[3] = { 0.5f, 0.0f, 0.0f };
     SetShaderValue(dwarf.material.shader, shaderAlbedoLoc, shaderAlbedo, 3);
     float shaderAo[1] = { 1.0f };
@@ -245,9 +246,6 @@ int main()
         else if (IsKeyDown(KEY_LEFT)) lightPosition[selectedLight].x -= 0.1f;
         if (IsKeyDown('W')) lightPosition[selectedLight].y += 0.1f;
         else if (IsKeyDown('S')) lightPosition[selectedLight].y -= 0.1f;
-        
-        if (IsKeyPressed('O') && (renderMode < 2))renderMode++;
-        else if (IsKeyPressed('P') && (renderMode > 0)) renderMode--;
 
         // Update current light position
         for (int i = 0; i < MAX_LIGHTS; i++)
@@ -293,6 +291,10 @@ int main()
                         Matrix transform = MatrixMultiply(MatrixMultiply(matScale, matRotation), matTranslation);
                         SetShaderValueMatrix(dwarf.material.shader, shaderModelLoc, transform);
 
+                        // Enable irradiance map 
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMap);
+
                         DrawModelEx(dwarf, (Vector3){ rows*MODEL_OFFSET, 0.0f, col*MODEL_OFFSET }, rotationAxis, rotationAngle, (Vector3){ MODEL_SCALE, MODEL_SCALE, MODEL_SCALE }, RED);
                     }
                 }
@@ -307,39 +309,13 @@ int main()
                 // Calculate view matrix for custom shaders
                 Matrix view = MatrixLookAt(camera.position, camera.target, camera.up);
 
-                switch (renderMode)
-                {
-                    case 0:
-                    {
-                        // Render hdr texture for testing purposes
-                        SetShaderValueMatrix(cubeShader, cubeViewLoc, view);
-                        glUseProgram(cubeShader.id);
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, skyTex);
-                        RenderCube();
-                    } break;
-                    case 1:
-                    {
-                        // Render skybox (render as last to prevent overdraw)
-                        SetShaderValueMatrix(skyShader, skyViewLoc, view);
-                        glUseProgram(skyShader.id);
-                        glUniform1i(skyMapLoc, 0);
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
-                        RenderCube();
-                    } break;
-                    case 2:
-                    {
-                        // Render skybox (render as last to prevent overdraw)
-                        SetShaderValueMatrix(irradianceShader, irradianceViewLoc, view);
-                        glUseProgram(irradianceShader.id);
-                        glUniform1i(irradianceMapLoc, 0);
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMap);
-                        RenderCube();
-                    } break;
-                    default: break;
-                }
+                // Render skybox (render as last to prevent overdraw)
+                SetShaderValueMatrix(skyShader, skyViewLoc, view);
+                glUseProgram(skyShader.id);
+                glUniform1i(skyMapLoc, 0);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
+                RenderCube();
 
             End3dMode();
 
