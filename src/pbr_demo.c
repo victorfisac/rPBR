@@ -316,6 +316,13 @@ int main()
                         glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
 
                         DrawModelEx(dwarf, (Vector3){ rows*MODEL_OFFSET, 0.0f, col*MODEL_OFFSET }, rotationAxis, rotationAngle, (Vector3){ MODEL_SCALE, MODEL_SCALE, MODEL_SCALE }, WHITE);
+                        
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+
+                        // Enable reflection map
+                        glActiveTexture(GL_TEXTURE1);
+                        glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
                     }
                 }
 
