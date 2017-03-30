@@ -18,6 +18,7 @@ uniform vec3 lightColor[MAX_LIGHTS];
 
 // Environment parameters
 uniform samplerCube irradianceMap;
+uniform samplerCube reflectionMap;
 
 // Other parameters
 uniform vec3 viewPos;

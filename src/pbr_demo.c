@@ -109,15 +109,28 @@ int main()
     int irradianceProjectionLoc = GetShaderLocation(irradianceShader, "projection");
     int irradianceViewLoc = GetShaderLocation(irradianceShader, "view");
 
-    // Set up shader constant values
-    glUseProgram(pbrShader.id);
-    glUniform1i(glGetUniformLocation(pbrShader.id, "irradianceMap"), 0);
+    // Set up PBR shader constant values
+    glUseProgram(dwarf.material.shader.id);
+    glUniform1i(GetShaderLocation(dwarf.material.shader, "irradianceMap"), 0);
+    glUniform1i(GetShaderLocation(dwarf.material.shader, "reflectionMap"), 1);
     float shaderAlbedo[3] = { 0.8f, 0.8f, 0.8f };
     SetShaderValue(dwarf.material.shader, shaderAlbedoLoc, shaderAlbedo, 3);
     float shaderAo[1] = { 1.0f };
     SetShaderValue(dwarf.material.shader, shaderAoLoc, shaderAo, 1);
     float lightColor[3] = { 1.0f, 1.0f, 1.0f };
     for (unsigned int i = 0; i < MAX_LIGHTS; i++) SetShaderValue(dwarf.material.shader, shaderLightColorLoc[i], lightColor, 3);
+
+    // Set up cubemap shader constant values
+    glUseProgram(cubeShader.id);
+    glUniform1i(equirectangularMapLoc, 0);
+
+    // Set up irradiance shader constant values
+    glUseProgram(irradianceShader.id);
+    glUniform1i(irradianceMapLoc, 0);
+
+    // Set up skybox shader constant values
+    glUseProgram(skyShader.id);
+    glUniform1i(skyMapLoc, 0);
 
     // Set our game to run at 60 frames-per-second
     SetTargetFPS(60);
@@ -162,7 +175,6 @@ int main()
 
     // Convert HDR equirectangular environment map to cubemap equivalent
     glUseProgram(cubeShader.id);
-    glUniform1i(equirectangularMapLoc, 0);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, skyTex);
     SetShaderValueMatrix(cubeShader, cubeProjectionLoc, captureProjection);
@@ -197,7 +209,6 @@ int main()
 
     // Solve diffuse integral by convolution to create an irradiance cubemap
     glUseProgram(irradianceShader.id);
-    glUniform1i(irradianceMapLoc, 0);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
     SetShaderValueMatrix(irradianceShader, irradianceProjectionLoc, captureProjection);
@@ -213,7 +224,10 @@ int main()
         RenderCube();
     }
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);  
+    // Unbind framebuffer and textures
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, 0);
 
     // Then before rendering, configure the viewport to the actual screen dimensions
     Matrix defaultProjection = MatrixPerspective(camera.fovy, (double)screenWidth/(double)screenHeight, 0.01, 1000.0);
@@ -222,6 +236,7 @@ int main()
     SetShaderValueMatrix(skyShader, skyProjectionLoc, defaultProjection);
     SetShaderValueMatrix(irradianceShader, irradianceProjectionLoc, defaultProjection);
 
+    // Reset viewport dimensions to default
     glViewport(0, 0, screenWidth, screenHeight);
     //------------------------------------------------------------------------------
 
@@ -291,11 +306,16 @@ int main()
                         Matrix transform = MatrixMultiply(MatrixMultiply(matScale, matRotation), matTranslation);
                         SetShaderValueMatrix(dwarf.material.shader, shaderModelLoc, transform);
 
-                        // Enable irradiance map 
+                        // Enable irradiance map
+                        glUseProgram(dwarf.material.shader.id);
                         glActiveTexture(GL_TEXTURE0);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMap);
 
-                        DrawModelEx(dwarf, (Vector3){ rows*MODEL_OFFSET, 0.0f, col*MODEL_OFFSET }, rotationAxis, rotationAngle, (Vector3){ MODEL_SCALE, MODEL_SCALE, MODEL_SCALE }, RED);
+                        // Enable reflection map
+                        glActiveTexture(GL_TEXTURE1);
+                        glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
+
+                        DrawModelEx(dwarf, (Vector3){ rows*MODEL_OFFSET, 0.0f, col*MODEL_OFFSET }, rotationAxis, rotationAngle, (Vector3){ MODEL_SCALE, MODEL_SCALE, MODEL_SCALE }, WHITE);
                     }
                 }
 
@@ -312,7 +332,6 @@ int main()
                 // Render skybox (render as last to prevent overdraw)
                 SetShaderValueMatrix(skyShader, skyViewLoc, view);
                 glUseProgram(skyShader.id);
-                glUniform1i(skyMapLoc, 0);
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
                 RenderCube();
@@ -327,13 +346,15 @@ int main()
 
     // De-Initialization
     //------------------------------------------------------------------------------
-    // Unload external resources
-    UnloadShader(pbrShader);
+    // Unload external and allocated resources
+    UnloadShader(dwarf.material.shader);
     UnloadShader(cubeShader);
     UnloadShader(skyShader);
     UnloadShader(irradianceShader);
     UnloadModel(dwarf);
     UnloadHighDynamicRange(skyTex);
+    UnloadHighDynamicRange(cubeMap);
+    UnloadHighDynamicRange(irradianceMap);
 
     // Close window and OpenGL context
     CloseWindow();
