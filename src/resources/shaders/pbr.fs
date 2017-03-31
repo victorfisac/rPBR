@@ -118,9 +118,10 @@ void main()
     vec3 kS = fresnelSchlickRoughness(max(dot(normal, view), 0.0), f0, roughness);
     vec3 kD = 1.0 - kS;
     vec3 irradiance = texture(irradianceMap, normal).rgb;
-    vec3 diffuse = irradiance*albedo;
-    vec3 ambient = kD*diffuse*ao;
-    vec3 color = ambient + Lo;
+    vec3 diffuse = albedo*irradiance;
+    vec3 reflection = texture(reflectionMap, normal).rgb*metallic;
+    vec3 ambient = kD*diffuse + kS*reflection;
+    vec3 color = (ambient + Lo)*ao;
 
     color = color/(color + vec3(1.0));
     color = pow(color, vec3(1.0/2.2));

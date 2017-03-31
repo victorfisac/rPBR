@@ -113,7 +113,7 @@ int main()
     glUseProgram(dwarf.material.shader.id);
     glUniform1i(GetShaderLocation(dwarf.material.shader, "irradianceMap"), 0);
     glUniform1i(GetShaderLocation(dwarf.material.shader, "reflectionMap"), 1);
-    float shaderAlbedo[3] = { 0.8f, 0.8f, 0.8f };
+    float shaderAlbedo[3] = { 1.0f, 0.8f, 0.4f };
     SetShaderValue(dwarf.material.shader, shaderAlbedoLoc, shaderAlbedo, 3);
     float shaderAo[1] = { 1.0f };
     SetShaderValue(dwarf.material.shader, shaderAoLoc, shaderAo, 1);
@@ -138,7 +138,7 @@ int main()
     glDisable(GL_CULL_FACE);
 
     // Load HDR environment
-    unsigned int skyTex = LoadHighDynamicRange("resources/textures/skybox.hdr");
+    unsigned int skyTex = LoadHighDynamicRange("resources/textures/skybox_apartament.hdr");
 
     // Set up framebuffer for skybox
     unsigned int captureFBO, captureRBO;
