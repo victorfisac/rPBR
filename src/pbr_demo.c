@@ -113,7 +113,8 @@ int main()
     glUseProgram(dwarf.material.shader.id);
     glUniform1i(GetShaderLocation(dwarf.material.shader, "irradianceMap"), 0);
     glUniform1i(GetShaderLocation(dwarf.material.shader, "reflectionMap"), 1);
-    float shaderAlbedo[3] = { 1.0f, 0.8f, 0.4f };
+    glUniform1i(GetShaderLocation(dwarf.material.shader, "blurredMap"), 2);
+    float shaderAlbedo[3] = { 1.0f, 1.0f, 1.0f };
     SetShaderValue(dwarf.material.shader, shaderAlbedoLoc, shaderAlbedo, 3);
     float shaderAo[1] = { 1.0f };
     SetShaderValue(dwarf.material.shader, shaderAoLoc, shaderAo, 1);
@@ -226,8 +227,49 @@ int main()
 
     // Unbind framebuffer and textures
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    
+    // Load blurred HDR environment
+    unsigned int skyTexBlur = LoadHighDynamicRange("resources/textures/skybox_apartament_blur.hdr");
+
+    // Set up framebuffer for skybox
+    unsigned int captureFBOBlur, captureRBOBlur;
+    glGenFramebuffers(1, &captureFBOBlur);
+    glGenRenderbuffers(1, &captureRBOBlur);
+    glBindFramebuffer(GL_FRAMEBUFFER, captureFBOBlur);
+    glBindRenderbuffer(GL_RENDERBUFFER, captureRBOBlur);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 1024, 1024);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, captureRBOBlur);
+
+    // Set up cubemap to render and attach to framebuffer
+    // NOTE: faces are stored with 16 bit floating point values
+    unsigned int cubeMapBlur;
+    glGenTextures(1, &cubeMapBlur);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMapBlur);
+    for (unsigned int i = 0; i < 6; i++) glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 1024, 1024, 0, GL_RGB, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Convert HDR equirectangular environment map to cubemap equivalent
+    glUseProgram(cubeShader.id);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindTexture(GL_TEXTURE_2D, skyTexBlur);
+    SetShaderValueMatrix(cubeShader, cubeProjectionLoc, captureProjection);
+
+    glViewport(0, 0, 1024, 1024);     // Note: don't forget to configure the viewport to the capture dimensions
+    glBindFramebuffer(GL_FRAMEBUFFER, captureFBOBlur);
+
+    for (unsigned int i = 0; i < 6; i++)
+    {
+        SetShaderValueMatrix(cubeShader, cubeViewLoc, captureViews[i]);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, cubeMapBlur, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        RenderCube();
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // Then before rendering, configure the viewport to the actual screen dimensions
     Matrix defaultProjection = MatrixPerspective(camera.fovy, (double)screenWidth/(double)screenHeight, 0.01, 1000.0);
@@ -314,6 +356,10 @@ int main()
                         // Enable reflection map
                         glActiveTexture(GL_TEXTURE1);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
+                        
+                        // Enable blurred reflection map
+                        glActiveTexture(GL_TEXTURE2);
+                        glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMapBlur);
 
                         DrawModelEx(dwarf, (Vector3){ rows*MODEL_OFFSET, 0.0f, col*MODEL_OFFSET }, rotationAxis, rotationAngle, (Vector3){ MODEL_SCALE, MODEL_SCALE, MODEL_SCALE }, WHITE);
                         
@@ -360,7 +406,9 @@ int main()
     UnloadShader(irradianceShader);
     UnloadModel(dwarf);
     UnloadHighDynamicRange(skyTex);
+    UnloadHighDynamicRange(skyTexBlur);
     UnloadHighDynamicRange(cubeMap);
+    UnloadHighDynamicRange(cubeMapBlur);
     UnloadHighDynamicRange(irradianceMap);
 
     // Close window and OpenGL context

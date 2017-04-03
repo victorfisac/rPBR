@@ -19,6 +19,7 @@ uniform vec3 lightColor[MAX_LIGHTS];
 // Environment parameters
 uniform samplerCube irradianceMap;
 uniform samplerCube reflectionMap;
+uniform samplerCube blurredMap;
 
 // Other parameters
 uniform vec3 viewPos;
@@ -118,8 +119,10 @@ void main()
     vec3 kS = fresnelSchlickRoughness(max(dot(normal, view), 0.0), f0, roughness);
     vec3 kD = 1.0 - kS;
     vec3 irradiance = texture(irradianceMap, normal).rgb;
+    vec3 fullReflection = texture(reflectionMap, normal).rgb;
+    vec3 blurReflection = texture(blurredMap, normal).rgb;
+    vec3 reflection = mix(blurReflection, fullReflection, roughness)*metallic;
     vec3 diffuse = albedo*irradiance;
-    vec3 reflection = texture(reflectionMap, normal).rgb*metallic;
     vec3 ambient = kD*diffuse + kS*reflection;
     vec3 color = (ambient + Lo)*ao;
 
