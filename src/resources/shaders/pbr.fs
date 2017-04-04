@@ -20,7 +20,6 @@ uniform vec3 lightColor[MAX_LIGHTS];
 uniform samplerCube irradianceMap;
 uniform samplerCube reflectionMap;
 uniform samplerCube blurredMap;
-uniform sampler2D brdfMap;
 
 // Other parameters
 uniform vec3 viewPos;
@@ -34,15 +33,6 @@ float GeometrySchlickGGX(float NdotV, float roughness);
 float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 vec3 fresnelSchlick(float cosTheta, vec3 F0);
 vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
-
-float GGX(float NdotV, float a);
-float G_Smith(float a, float NdotV, float NdotL);
-float radicalInverse_VdC(uint bits);
-vec2 Hammersley(uint i, uint n);
-vec3 ImportanceSampleGGX(vec2 Xi, float Roughness, vec3 N);
-vec3 PrefilterEnvMap(float roughness, vec3 R);
-vec2 IntegrateBRDF(float Roughness, float NoV, vec3 N);
-vec3 ApproximateSpecularIBL(vec3 specularColor, float roughness, vec3 N, vec3 V);
 
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
@@ -88,117 +78,6 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
     return F0 + (max(vec3(1.0 - roughness), F0) - F0)*pow(1.0 - cosTheta, 5.0);
 }
 
-float GGX(float NdotV, float a)
-{
-    float k = (a*a)/2;
-    return NdotV/(NdotV*(1.0f - k) + k);
-}
-
-float G_Smith(float a, float NdotV, float NdotL)
-{
-    return GGX(NdotL, a)*GGX(NdotV, a);
-}
-
-float radicalInverse_VdC(uint bits)
-{
-    bits = (bits << 16u) | (bits >> 16u);
-    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
-    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
-    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
-    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
-
-    return float(bits) * 2.3283064365386963e-10; // / 0x100000000
-}
-
-vec2 Hammersley(uint i, uint n)
-{ 
-    return vec2(i/n, radicalInverse_VdC(i));
-}
-
-vec3 ImportanceSampleGGX(vec2 Xi, float Roughness, vec3 N)
-{
-    float a = pow(Roughness + 1, 2);
-    float Phi = 2*PI*Xi.x;
-    float CosTheta = sqrt((1 - Xi.y)/(1 + (a*a - 1)*Xi.y));
-    float SinTheta = sqrt( 1 - CosTheta*CosTheta);
-
-    vec3 H = vec3(0.0);
-    H.x = SinTheta*cos(Phi);
-    H.y = SinTheta*sin(Phi);
-    H.z = CosTheta;
-
-    vec3 UpVector = ((abs(N.z) < 0.999) ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0));
-    vec3 TangentX = normalize(cross(UpVector, N));
-    vec3 TangentY = cross(N, TangentX);
-
-    // Tangent to world space
-    return TangentX*H.x + TangentY*H.y + N*H.z;
-}
-
-vec3 PrefilterEnvMap(float roughness, vec3 R)
-{
-    vec3 N = R;
-    vec3 V = R;
-    vec3 prefColor = vec3(0.0);
-    uint numSamples = uint(1024);
-    float totalWeight = 0;
-
-    for (uint i = uint(0); i < numSamples; i++)
-    {
-        vec2 Xi = Hammersley(i, numSamples);
-        vec3 H = ImportanceSampleGGX(Xi, roughness, N);
-        vec3 L = 2*dot(V, H)*H - V;
-        float NoL = clamp(dot(N, L), 0.0, 1.0);
-
-        if (NoL > 0)
-        {
-            prefColor += texture(reflectionMap, L).rgb*NoL;
-            totalWeight += NoL;
-        }
-    }
-
-    return prefColor/totalWeight;
-}
-
-vec2 IntegrateBRDF(float Roughness, float NoV, vec3 N)
-{
-    vec3 V = vec3(sqrt(1.0f - NoV*NoV), 0.0, NoV);
-    float A = 0;
-    float B = 0;
-    uint numSamples = uint(1024);
-
-    for (uint i = uint(0); i < numSamples; i++)
-    {
-        vec2 Xi = Hammersley(i, numSamples);
-        vec3 H = ImportanceSampleGGX(Xi, Roughness, N);
-        vec3 L = 2*dot(V, H)*H - V;
-        float NoL = clamp(L.z, 0.0, 1.0);
-        float NoH = clamp(H.z, 0.0, 1.0);
-        float VoH = clamp(dot(V, H), 0.0, 1.0);
-
-        if(NoL > 0)
-        {
-            float G = G_Smith(Roughness, NoV, NoL);
-            float G_Vis = G*VoH/(NoH*NoV);
-            float Fc = pow(1 - VoH, 5);
-            A += (1 - Fc)*G_Vis;
-            B += Fc*G_Vis;
-        }
-    }
-    return vec2(A, B)/numSamples;
-}
-
-
-vec3 ApproximateSpecularIBL(vec3 specularColor, float roughness, vec3 N, vec3 V)
-{
-    float NoV = max(dot(N, V), 0.0);
-    vec3 R = 2*dot(V, N)*N - V;
-    vec3 prefilteredColor = PrefilterEnvMap(roughness, R);
-    vec2 envBRDF = IntegrateBRDF(roughness, NoV, N);
-    
-    return prefilteredColor*(specularColor*envBRDF.x + envBRDF.y);
-}
-
 void main()
 {
     vec3 normal = normalize(fragNormal);
@@ -222,7 +101,7 @@ void main()
         // Cook-torrance brdf
         float NDF = DistributionGGX(normal, high, roughness);
         float G = GeometrySmith(normal, view, light, roughness);
-        vec3 F = fresnelSchlickRoughness(max(dot(high, view), 0.0), f0, roughness);
+        vec3 F = fresnelSchlick(max(dot(high, view), 0.0), f0);
 
         vec3 kS = F;
         vec3 kD = vec3(1.0) - kS;

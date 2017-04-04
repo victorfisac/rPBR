@@ -64,7 +64,6 @@ int main()
     Shader cubeShader = LoadShader("resources/shaders/cubemap.vs", "resources/shaders/cubemap.fs");
     Shader skyShader = LoadShader("resources/shaders/skybox.vs", "resources/shaders/skybox.fs");
     Shader irradianceShader = LoadShader("resources/shaders/irradiance.vs", "resources/shaders/irradiance.fs");
-    Texture2D brdfTex = LoadTexture("resources/textures/brdf.png");
 
     // Set up materials and lighting
     Material material = LoadDefaultMaterial();
@@ -115,7 +114,6 @@ int main()
     glUniform1i(GetShaderLocation(dwarf.material.shader, "irradianceMap"), 0);
     glUniform1i(GetShaderLocation(dwarf.material.shader, "reflectionMap"), 1);
     glUniform1i(GetShaderLocation(dwarf.material.shader, "blurredMap"), 2);
-    glUniform1i(GetShaderLocation(dwarf.material.shader, "brdfMap"), 3);
     float shaderAlbedo[3] = { 1.0f, 1.0f, 1.0f };
     SetShaderValue(dwarf.material.shader, shaderAlbedoLoc, shaderAlbedo, 3);
     float shaderAo[1] = { 1.0f };
@@ -362,10 +360,6 @@ int main()
                         // Enable blurred reflection map
                         glActiveTexture(GL_TEXTURE2);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMapBlur);
-                        
-                        // Enable blurred reflection map
-                        glActiveTexture(GL_TEXTURE3);
-                        glBindTexture(GL_TEXTURE_2D, brdfTex.id);
 
                         DrawModelEx(dwarf, (Vector3){ rows*MODEL_OFFSET, 0.0f, col*MODEL_OFFSET }, rotationAxis, rotationAngle, (Vector3){ MODEL_SCALE, MODEL_SCALE, MODEL_SCALE }, WHITE);
                         
@@ -416,7 +410,6 @@ int main()
     UnloadHighDynamicRange(cubeMap);
     UnloadHighDynamicRange(cubeMapBlur);
     UnloadHighDynamicRange(irradianceMap);
-    UnloadTexture(brdfTex);
 
     // Close window and OpenGL context
     CloseWindow();
