@@ -9,25 +9,37 @@
 //----------------------------------------------------------------------------------
 // Includes
 //----------------------------------------------------------------------------------
-#include <stdlib.h>                 // Required for: exit()
-#include <stdio.h>                  // Required for: printf()
-#include <string.h>                 // Required for: strcpy()
+#include <stdlib.h>                     // Required for: exit()
+#include <stdio.h>                      // Required for: printf()
+#include <string.h>                     // Required for: strcpy()
 
-#include "raylib.h"                 // Required for raylib framework
-#include "pbrmath.h"                // Required for matrix and vectors math
+#include "raylib.h"                     // Required for raylib framework
+#include "pbrmath.h"                    // Required for matrix and vectors math
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "external/stb_image.h"     // Required for image loading
-#include "external/glad.h"          // Required for OpenGL API
+#include "external/stb_image.h"         // Required for image loading
+#include "external/glad.h"              // Required for OpenGL API
 
 //----------------------------------------------------------------------------------
 // Defines
 //----------------------------------------------------------------------------------
-#define         MAX_LIGHTS          4               // Max lights supported by shader
-#define         MAX_ROWS            7               // Rows to render models
-#define         MAX_COLUMNS         7               // Columns to render models
-#define         MODEL_SCALE         0.35f           // Model scale transformation for rendering
-#define         MODEL_OFFSET        0.45f           // Distance between models for rendering
+#define         PATH_MODEL              "resources/models/dwarf.obj"
+#define         PATH_PBR_VS             "resources/shaders/pbr.vs"
+#define         PATH_PBR_FS             "resources/shaders/pbr.fs"
+#define         PATH_CUBE_VS            "resources/shaders/cubemap.vs"
+#define         PATH_CUBE_FS            "resources/shaders/cubemap.fs"
+#define         PATH_SKYBOX_VS          "resources/shaders/skybox.vs"
+#define         PATH_SKYBOX_FS          "resources/shaders/skybox.fs"
+#define         PATH_IRRADIANCE_VS      "resources/shaders/irradiance.vs"
+#define         PATH_IRRADIANCE_FS      "resources/shaders/irradiance.fs"
+#define         PATH_HDR                "resources/textures/skybox_apartament.hdr"
+#define         PATH_HDR_BLUR           "resources/textures/skybox_apartament_blur.hdr"
+
+#define         MAX_LIGHTS              4               // Max lights supported by shader
+#define         MAX_ROWS                7               // Rows to render models
+#define         MAX_COLUMNS             7               // Columns to render models
+#define         MODEL_SCALE             0.35f           // Model scale transformation for rendering
+#define         MODEL_OFFSET            0.45f           // Distance between models for rendering
 
 //----------------------------------------------------------------------------------
 // Function Declarations
@@ -59,11 +71,11 @@ int main()
     int selectedLight = 0;
 
     // Load external resources
-    Model dwarf = LoadModel("resources/models/dwarf.obj");
-    Shader pbrShader = LoadShader("resources/shaders/pbr.vs", "resources/shaders/pbr.fs");
-    Shader cubeShader = LoadShader("resources/shaders/cubemap.vs", "resources/shaders/cubemap.fs");
-    Shader skyShader = LoadShader("resources/shaders/skybox.vs", "resources/shaders/skybox.fs");
-    Shader irradianceShader = LoadShader("resources/shaders/irradiance.vs", "resources/shaders/irradiance.fs");
+    Model dwarf = LoadModel(PATH_MODEL);
+    Shader pbrShader = LoadShader(PATH_PBR_VS, PATH_PBR_FS);
+    Shader cubeShader = LoadShader(PATH_CUBE_VS, PATH_CUBE_FS);
+    Shader skyShader = LoadShader(PATH_SKYBOX_VS, PATH_SKYBOX_FS);
+    Shader irradianceShader = LoadShader(PATH_SKYBOX_VS, PATH_IRRADIANCE_FS);
 
     // Set up materials and lighting
     Material material = LoadDefaultMaterial();
@@ -139,7 +151,7 @@ int main()
     glDisable(GL_CULL_FACE);
 
     // Load HDR environment
-    unsigned int skyTex = LoadHighDynamicRange("resources/textures/skybox_apartament.hdr");
+    unsigned int skyTex = LoadHighDynamicRange(PATH_HDR);
 
     // Set up framebuffer for skybox
     unsigned int captureFBO, captureRBO;
@@ -229,7 +241,7 @@ int main()
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     
     // Load blurred HDR environment
-    unsigned int skyTexBlur = LoadHighDynamicRange("resources/textures/skybox_apartament_blur.hdr");
+    unsigned int skyTexBlur = LoadHighDynamicRange(PATH_HDR_BLUR);
 
     // Set up framebuffer for skybox
     unsigned int captureFBOBlur, captureRBOBlur;

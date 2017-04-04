@@ -101,7 +101,7 @@ void main()
         // Cook-torrance brdf
         float NDF = DistributionGGX(normal, high, roughness);
         float G = GeometrySmith(normal, view, light, roughness);
-        vec3 F = fresnelSchlick(max(dot(high, view), 0.0), f0);
+        vec3 F = fresnelSchlickRoughness(max(dot(high, view), 0.0), f0, roughness);
 
         vec3 kS = F;
         vec3 kD = vec3(1.0) - kS;
