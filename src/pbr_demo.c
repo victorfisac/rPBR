@@ -23,23 +23,28 @@
 //----------------------------------------------------------------------------------
 // Defines
 //----------------------------------------------------------------------------------
-#define         PATH_MODEL              "resources/models/dwarf.obj"
-#define         PATH_PBR_VS             "resources/shaders/pbr.vs"
-#define         PATH_PBR_FS             "resources/shaders/pbr.fs"
-#define         PATH_CUBE_VS            "resources/shaders/cubemap.vs"
-#define         PATH_CUBE_FS            "resources/shaders/cubemap.fs"
-#define         PATH_SKYBOX_VS          "resources/shaders/skybox.vs"
-#define         PATH_SKYBOX_FS          "resources/shaders/skybox.fs"
-#define         PATH_IRRADIANCE_VS      "resources/shaders/irradiance.vs"
-#define         PATH_IRRADIANCE_FS      "resources/shaders/irradiance.fs"
-#define         PATH_HDR                "resources/textures/skybox_apartament.hdr"
-#define         PATH_HDR_BLUR           "resources/textures/skybox_apartament_blur.hdr"
+#define         PATH_MODEL                  "resources/models/dwarf.obj"
+#define         PATH_PBR_VS                 "resources/shaders/pbr.vs"
+#define         PATH_PBR_FS                 "resources/shaders/pbr.fs"
+#define         PATH_CUBE_VS                "resources/shaders/cubemap.vs"
+#define         PATH_CUBE_FS                "resources/shaders/cubemap.fs"
+#define         PATH_SKYBOX_VS              "resources/shaders/skybox.vs"
+#define         PATH_SKYBOX_FS              "resources/shaders/skybox.fs"
+#define         PATH_IRRADIANCE_VS          "resources/shaders/irradiance.vs"
+#define         PATH_IRRADIANCE_FS          "resources/shaders/irradiance.fs"
+#define         PATH_HDR                    "resources/textures/skybox_apartament.hdr"
+#define         PATH_HDR_BLUR               "resources/textures/skybox_apartament_blur.hdr"
+#define         PATH_TEXTURES_ALBEDO        "resources/textures/dwarf_albedo.png"
+#define         PATH_TEXTURES_METALLIC      "resources/textures/dwarf_metallic.png"
+#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/dwarf_roughness.png"
+#define         PATH_TEXTURES_AO            "resources/textures/dwarf_ao.png"
 
 #define         MAX_LIGHTS              4               // Max lights supported by shader
-#define         MAX_ROWS                7               // Rows to render models
-#define         MAX_COLUMNS             7               // Columns to render models
-#define         MODEL_SCALE             0.35f           // Model scale transformation for rendering
+#define         MAX_ROWS                1               // Rows to render models
+#define         MAX_COLUMNS             1               // Columns to render models
+#define         MODEL_SCALE             1.30f           // Model scale transformation for rendering
 #define         MODEL_OFFSET            0.45f           // Distance between models for rendering
+#define         ROTATION_SPEED          0.25f;          // Models rotation speed
 
 //----------------------------------------------------------------------------------
 // Function Declarations
@@ -65,7 +70,7 @@ int main()
     // Define the camera to look into our 3d world, its mode and model drawing position
     float rotationAngle = 0.0f;
     Vector3 rotationAxis = { 0.0f, 1.0f, 0.0f };
-    Vector3 lightPosition[MAX_LIGHTS] = { (Vector3){ 1.125f, 1.0f, 1.125f }, (Vector3){ 2.125f, 1.0f, 1.125f }, (Vector3){ 1.125f, 1.0f, 2.125f }, (Vector3){ 2.125f, 1.0f, 2.125f } };
+    Vector3 lightPosition[MAX_LIGHTS] = { (Vector3){ -1.0f, 1.0f, -1.0f }, (Vector3){ 1.0, 1.0f, -1.0f }, (Vector3){ 1.0f, 1.0f, 1.0f }, (Vector3){ -1.0f, 1.0f, 1.0f } };
     Camera camera = {{ 3.75f, 2.25f, 3.75f }, { 1.0f, 0.0f, 1.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f };
     SetCameraMode(camera, CAMERA_FREE);
     int selectedLight = 0;
@@ -76,6 +81,10 @@ int main()
     Shader cubeShader = LoadShader(PATH_CUBE_VS, PATH_CUBE_FS);
     Shader skyShader = LoadShader(PATH_SKYBOX_VS, PATH_SKYBOX_FS);
     Shader irradianceShader = LoadShader(PATH_SKYBOX_VS, PATH_IRRADIANCE_FS);
+    Texture2D albedoTex = LoadTexture(PATH_TEXTURES_ALBEDO);
+    Texture2D metallicTex = LoadTexture(PATH_TEXTURES_METALLIC);
+    Texture2D roughnessTex = LoadTexture(PATH_TEXTURES_ROUGHNESS);
+    Texture2D aoTex = LoadTexture(PATH_TEXTURES_AO);
 
     // Set up materials and lighting
     Material material = LoadDefaultMaterial();
@@ -85,10 +94,10 @@ int main()
     // Get PBR shader locations
     int shaderViewLoc = GetShaderLocation(dwarf.material.shader, "viewPos");
     int shaderModelLoc = GetShaderLocation(dwarf.material.shader, "mMatrix");
-    int shaderAlbedoLoc = GetShaderLocation(dwarf.material.shader, "albedo");
-    int shaderMetallicLoc = GetShaderLocation(dwarf.material.shader, "metallic");    
-    int shaderRoughnessLoc = GetShaderLocation(dwarf.material.shader, "roughness");
-    int shaderAoLoc = GetShaderLocation(dwarf.material.shader, "ao");
+    int shaderAlbedoLoc = GetShaderLocation(dwarf.material.shader, "albedo.color");
+    int shaderMetallicLoc = GetShaderLocation(dwarf.material.shader, "metallic.color");    
+    int shaderRoughnessLoc = GetShaderLocation(dwarf.material.shader, "roughness.color");
+    int shaderAoLoc = GetShaderLocation(dwarf.material.shader, "ao.color");
     int shaderLightPosLoc[MAX_LIGHTS] = { -1 };
     int shaderLightColorLoc[MAX_LIGHTS] = { -1 };
 
@@ -123,13 +132,22 @@ int main()
 
     // Set up PBR shader constant values
     glUseProgram(dwarf.material.shader.id);
+    glUniform1i(GetShaderLocation(dwarf.material.shader, "albedo.useSampler"), 1);
+    glUniform1i(GetShaderLocation(dwarf.material.shader, "metallic.useSampler"), 1);
+    glUniform1i(GetShaderLocation(dwarf.material.shader, "roughness.useSampler"), 1);
+    glUniform1i(GetShaderLocation(dwarf.material.shader, "ao.useSampler"), 1);
+
     glUniform1i(GetShaderLocation(dwarf.material.shader, "irradianceMap"), 0);
     glUniform1i(GetShaderLocation(dwarf.material.shader, "reflectionMap"), 1);
     glUniform1i(GetShaderLocation(dwarf.material.shader, "blurredMap"), 2);
+    glUniform1i(GetShaderLocation(dwarf.material.shader, "albedo.sampler"), 3);
+    glUniform1i(GetShaderLocation(dwarf.material.shader, "metallic.sampler"), 4);
+    glUniform1i(GetShaderLocation(dwarf.material.shader, "roughness.sampler"), 5);
+    glUniform1i(GetShaderLocation(dwarf.material.shader, "ao.sampler"), 6);
     float shaderAlbedo[3] = { 1.0f, 1.0f, 1.0f };
     SetShaderValue(dwarf.material.shader, shaderAlbedoLoc, shaderAlbedo, 3);
-    float shaderAo[1] = { 1.0f };
-    SetShaderValue(dwarf.material.shader, shaderAoLoc, shaderAo, 1);
+    float shaderAo[3] = { 1.0f , 0.0f, 0.0f };
+    SetShaderValue(dwarf.material.shader, shaderAoLoc, shaderAo, 3);
     float lightColor[3] = { 1.0f, 1.0f, 1.0f };
     for (unsigned int i = 0; i < MAX_LIGHTS; i++) SetShaderValue(dwarf.material.shader, shaderLightColorLoc[i], lightColor, 3);
 
@@ -300,7 +318,7 @@ int main()
         // Update
         //--------------------------------------------------------------------------
         // Update current rotation angle
-        rotationAngle += 1.0f;
+        rotationAngle += ROTATION_SPEED;
 
         // Check selected light inputs
         if (IsKeyPressed('1')) selectedLight = 0;
@@ -343,16 +361,16 @@ int main()
                 // Draw models grid with parametric metalness and roughness values
                 for (unsigned int rows = 0; rows < MAX_ROWS; rows++)
                 {
-                    float shaderMetallic[1] = { (float)rows/(float)MAX_ROWS };
-                    SetShaderValue(dwarf.material.shader, shaderMetallicLoc, shaderMetallic, 1);
+                    float shaderMetallic[3] = { (float)rows/(float)MAX_ROWS , 0.0f, 0.0f };
+                    SetShaderValue(dwarf.material.shader, shaderMetallicLoc, shaderMetallic, 3);
 
                     for (unsigned int col = 0; col < MAX_COLUMNS; col++)
                     {
                         float rough = (float)col/(float)MAX_COLUMNS;
                         ClampFloat(&rough, 0.05f, 1.0f);
 
-                        float shaderRoughness[1] = { rough };
-                        SetShaderValue(dwarf.material.shader, shaderRoughnessLoc, shaderRoughness, 1);
+                        float shaderRoughness[3] = { rough, 0.0f, 0.0f };
+                        SetShaderValue(dwarf.material.shader, shaderRoughnessLoc, shaderRoughness, 3);
 
                         Matrix matScale = MatrixScale(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE);
                         Matrix matRotation = MatrixRotate(rotationAxis, rotationAngle*DEG2RAD);
@@ -360,27 +378,65 @@ int main()
                         Matrix transform = MatrixMultiply(MatrixMultiply(matScale, matRotation), matTranslation);
                         SetShaderValueMatrix(dwarf.material.shader, shaderModelLoc, transform);
 
-                        // Enable irradiance map
+                        // Enable and bind irradiance map
                         glUseProgram(dwarf.material.shader.id);
                         glActiveTexture(GL_TEXTURE0);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMap);
 
-                        // Enable reflection map
+                        // Enable and bind reflection map
                         glActiveTexture(GL_TEXTURE1);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
                         
-                        // Enable blurred reflection map
+                        // Enable and bind blurred reflection map
                         glActiveTexture(GL_TEXTURE2);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMapBlur);
-
-                        DrawModelEx(dwarf, (Vector3){ rows*MODEL_OFFSET, 0.0f, col*MODEL_OFFSET }, rotationAxis, rotationAngle, (Vector3){ MODEL_SCALE, MODEL_SCALE, MODEL_SCALE }, WHITE);
                         
+                        // Enable and bind albedo map
+                        glActiveTexture(GL_TEXTURE3);
+                        glBindTexture(GL_TEXTURE_2D, albedoTex.id);
+                        
+                        // Enable and bind metallic map
+                        glActiveTexture(GL_TEXTURE4);
+                        glBindTexture(GL_TEXTURE_2D, metallicTex.id);
+                        
+                        // Enable and bind roughness map
+                        glActiveTexture(GL_TEXTURE5);
+                        glBindTexture(GL_TEXTURE_2D, roughnessTex.id);
+                        
+                        // Enable and bind ambient occlusion map
+                        glActiveTexture(GL_TEXTURE6);
+                        glBindTexture(GL_TEXTURE_2D, aoTex.id);
+
+                        // Draw model using PBR shader and textures maps
+                        DrawModelEx(dwarf, (Vector3){ rows*MODEL_OFFSET, 0.0f, col*MODEL_OFFSET }, rotationAxis, rotationAngle, (Vector3){ MODEL_SCALE, MODEL_SCALE, MODEL_SCALE }, WHITE);
+
+                        // Disable and unbind irradiance map
                         glActiveTexture(GL_TEXTURE0);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 
-                        // Enable reflection map
+                        // Disable and unbind reflection map
                         glActiveTexture(GL_TEXTURE1);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+
+                        // Disable and unbind blurred reflection map
+                        glActiveTexture(GL_TEXTURE2);
+                        glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+
+                        // Disable and unbind albedo map
+                        glActiveTexture(GL_TEXTURE3);
+                        glBindTexture(GL_TEXTURE_2D, 0);
+
+                        // Disable and unbind metallic map
+                        glActiveTexture(GL_TEXTURE4);
+                        glBindTexture(GL_TEXTURE_2D, 0);
+
+                        // Disable and unbind roughness map
+                        glActiveTexture(GL_TEXTURE5);
+                        glBindTexture(GL_TEXTURE_2D, 0);
+
+                        // Disable and unbind ambient occlusion map
+                        glActiveTexture(GL_TEXTURE6);
+                        glBindTexture(GL_TEXTURE_2D, 0);
                     }
                 }
 
@@ -412,11 +468,15 @@ int main()
     // De-Initialization
     //------------------------------------------------------------------------------
     // Unload external and allocated resources
+    UnloadModel(dwarf);
+    UnloadTexture(albedoTex);
+    UnloadTexture(metallicTex);
+    UnloadTexture(roughnessTex);
+    UnloadTexture(aoTex);
     UnloadShader(dwarf.material.shader);
     UnloadShader(cubeShader);
     UnloadShader(skyShader);
     UnloadShader(irradianceShader);
-    UnloadModel(dwarf);
     UnloadHighDynamicRange(skyTex);
     UnloadHighDynamicRange(skyTexBlur);
     UnloadHighDynamicRange(cubeMap);

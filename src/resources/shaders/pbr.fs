@@ -1,16 +1,22 @@
 #version 330
 #define     MAX_LIGHTS      4
 
+struct MaterialProperty {
+    vec3 color;
+    int useSampler;
+    sampler2D sampler;
+};
+
 // Input vertex attributes (from vertex shader)
 in vec2 fragTexCoord;
 in vec3 fragPos;
 in vec3 fragNormal;
 
 // Material parameters
-uniform vec3 albedo;
-uniform float metallic;
-uniform float roughness;
-uniform float ao;
+uniform MaterialProperty albedo;
+uniform MaterialProperty metallic;
+uniform MaterialProperty roughness;
+uniform MaterialProperty ao;
 
 // Lighting parameters
 uniform vec3 lightPos[MAX_LIGHTS];
@@ -28,11 +34,18 @@ const float PI = 3.14159265359;
 // Output fragment color
 out vec4 finalColor;
 
+vec3 ComputeMaterialProperty(MaterialProperty property);
 float DistributionGGX(vec3 N, vec3 H, float roughness);
 float GeometrySchlickGGX(float NdotV, float roughness);
 float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 vec3 fresnelSchlick(float cosTheta, vec3 F0);
 vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
+
+vec3 ComputeMaterialProperty(MaterialProperty property)
+{
+    if (property.useSampler == 1) return texture(property.sampler, fragTexCoord).rgb;
+    else return property.color;
+}
 
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
@@ -82,9 +95,12 @@ void main()
 {
     vec3 normal = normalize(fragNormal);
     vec3 view = normalize(viewPos - fragPos);
+    vec3 color = ComputeMaterialProperty(albedo);
+    vec3 metal = ComputeMaterialProperty(metallic);
+    vec3 rough = ComputeMaterialProperty(roughness);
 
     vec3 f0 = vec3(0.04);
-    f0 = mix(f0, albedo, metallic);
+    f0 = mix(f0, color, metal.r);
 
     // Reflectance equation
     vec3 Lo = vec3(0.0);
@@ -99,13 +115,13 @@ void main()
         vec3 radiance = lightColor[i]*attenuation;
 
         // Cook-torrance brdf
-        float NDF = DistributionGGX(normal, high, roughness);
-        float G = GeometrySmith(normal, view, light, roughness);
-        vec3 F = fresnelSchlickRoughness(max(dot(high, view), 0.0), f0, roughness);
+        float NDF = DistributionGGX(normal, high, rough.r);
+        float G = GeometrySmith(normal, view, light, roughness.color.r);
+        vec3 F = fresnelSchlickRoughness(max(dot(high, view), 0.0), f0, rough.r);
 
         vec3 kS = F;
         vec3 kD = vec3(1.0) - kS;
-        kD *= 1.0 - metallic;
+        kD *= 1.0 - metal.r;
 
         vec3 nominator = NDF*G*F;
         float denominator = 4*max(dot(normal, view), 0.0)*max(dot(normal, light), 0.0) + 0.001;
@@ -113,21 +129,31 @@ void main()
 
         // Add to outgoing radiance Lo
         float NdotL = max(dot(normal, light), 0.0);
-        Lo += (kD*albedo/PI + brdf)*radiance*NdotL;
+        Lo += (kD*color/PI + brdf)*radiance*NdotL;
     }
 
-    vec3 kS = fresnelSchlickRoughness(max(dot(normal, view), 0.0), f0, roughness);
+    // Calculate specular fresnel and energy conservation
+    vec3 kS = fresnelSchlickRoughness(max(dot(normal, view), 0.0), f0, rough.r);
     vec3 kD = 1.0 - kS;
+
+    // Calculate indirect diffuse
     vec3 irradiance = texture(irradianceMap, normal).rgb;
+
+    // Calculate indirect specular and reflection
     vec3 fullReflection = texture(reflectionMap, normal).rgb;
     vec3 blurReflection = texture(blurredMap, normal).rgb;
-    vec3 reflection = mix(blurReflection, fullReflection, roughness)*metallic;
-    vec3 diffuse = albedo*irradiance;
+    vec3 reflection = mix(blurReflection, fullReflection, rough.r)*metal.r;
+
+    // Calculate final lighting
+    vec3 diffuse = color*irradiance;
     vec3 ambient = kD*diffuse + kS*reflection;
-    vec3 color = (ambient + Lo)*ao;
 
-    color = color/(color + vec3(1.0));
-    color = pow(color, vec3(1.0/2.2));
+    // Calculate final fragment color
+    vec3 fragmentColor = (ambient + Lo)*ComputeMaterialProperty(ao);
 
-    finalColor = vec4(color, 1.0);
+    // Apply gamma correction
+    fragmentColor = fragmentColor/(fragmentColor + vec3(1.0));
+    fragmentColor = pow(fragmentColor, vec3(1.0/2.2));
+
+    finalColor = vec4(fragmentColor, 1.0);
 }
