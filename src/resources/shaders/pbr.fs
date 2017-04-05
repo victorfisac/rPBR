@@ -95,6 +95,7 @@ void main()
 {
     vec3 normal = normalize(fragNormal);
     vec3 view = normalize(viewPos - fragPos);
+    vec3 refl = reflect(-view, normal);
     vec3 color = ComputeMaterialProperty(albedo);
     vec3 metal = ComputeMaterialProperty(metallic);
     vec3 rough = ComputeMaterialProperty(roughness);
@@ -140,8 +141,8 @@ void main()
     vec3 irradiance = texture(irradianceMap, normal).rgb;
 
     // Calculate indirect specular and reflection
-    vec3 fullReflection = texture(reflectionMap, normal).rgb;
-    vec3 blurReflection = texture(blurredMap, normal).rgb;
+    vec3 fullReflection = texture(reflectionMap, refl).rgb;
+    vec3 blurReflection = texture(blurredMap, refl).rgb;
     vec3 reflection = mix(blurReflection, fullReflection, rough.r)*metal.r;
 
     // Calculate final lighting
