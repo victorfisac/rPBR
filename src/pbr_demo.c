@@ -35,6 +35,7 @@
 #define         PATH_HDR                    "resources/textures/skybox_apartament.hdr"
 #define         PATH_HDR_BLUR               "resources/textures/skybox_apartament_blur.hdr"
 #define         PATH_TEXTURES_ALBEDO        "resources/textures/dwarf_albedo.png"
+#define         PATH_TEXTURES_NORMALS       "resources/textures/dwarf_normals.png"
 #define         PATH_TEXTURES_METALLIC      "resources/textures/dwarf_metallic.png"
 #define         PATH_TEXTURES_ROUGHNESS     "resources/textures/dwarf_roughness.png"
 #define         PATH_TEXTURES_AO            "resources/textures/dwarf_ao.png"
@@ -82,6 +83,7 @@ int main()
     Shader skyShader = LoadShader(PATH_SKYBOX_VS, PATH_SKYBOX_FS);
     Shader irradianceShader = LoadShader(PATH_SKYBOX_VS, PATH_IRRADIANCE_FS);
     Texture2D albedoTex = LoadTexture(PATH_TEXTURES_ALBEDO);
+    Texture2D normalsTex = LoadTexture(PATH_TEXTURES_NORMALS);
     Texture2D metallicTex = LoadTexture(PATH_TEXTURES_METALLIC);
     Texture2D roughnessTex = LoadTexture(PATH_TEXTURES_ROUGHNESS);
     Texture2D aoTex = LoadTexture(PATH_TEXTURES_AO);
@@ -95,6 +97,7 @@ int main()
     int shaderViewLoc = GetShaderLocation(dwarf.material.shader, "viewPos");
     int shaderModelLoc = GetShaderLocation(dwarf.material.shader, "mMatrix");
     int shaderAlbedoLoc = GetShaderLocation(dwarf.material.shader, "albedo.color");
+    int shaderNormalsLoc = GetShaderLocation(dwarf.material.shader, "normals.color");
     int shaderMetallicLoc = GetShaderLocation(dwarf.material.shader, "metallic.color");    
     int shaderRoughnessLoc = GetShaderLocation(dwarf.material.shader, "roughness.color");
     int shaderAoLoc = GetShaderLocation(dwarf.material.shader, "ao.color");
@@ -133,6 +136,7 @@ int main()
     // Set up PBR shader constant values
     glUseProgram(dwarf.material.shader.id);
     glUniform1i(GetShaderLocation(dwarf.material.shader, "albedo.useSampler"), 1);
+    glUniform1i(GetShaderLocation(dwarf.material.shader, "normals.useSampler"), 1);
     glUniform1i(GetShaderLocation(dwarf.material.shader, "metallic.useSampler"), 1);
     glUniform1i(GetShaderLocation(dwarf.material.shader, "roughness.useSampler"), 1);
     glUniform1i(GetShaderLocation(dwarf.material.shader, "ao.useSampler"), 1);
@@ -141,11 +145,14 @@ int main()
     glUniform1i(GetShaderLocation(dwarf.material.shader, "reflectionMap"), 1);
     glUniform1i(GetShaderLocation(dwarf.material.shader, "blurredMap"), 2);
     glUniform1i(GetShaderLocation(dwarf.material.shader, "albedo.sampler"), 3);
-    glUniform1i(GetShaderLocation(dwarf.material.shader, "metallic.sampler"), 4);
-    glUniform1i(GetShaderLocation(dwarf.material.shader, "roughness.sampler"), 5);
-    glUniform1i(GetShaderLocation(dwarf.material.shader, "ao.sampler"), 6);
+    glUniform1i(GetShaderLocation(dwarf.material.shader, "normals.sampler"), 4);
+    glUniform1i(GetShaderLocation(dwarf.material.shader, "metallic.sampler"), 5);
+    glUniform1i(GetShaderLocation(dwarf.material.shader, "roughness.sampler"), 6);
+    glUniform1i(GetShaderLocation(dwarf.material.shader, "ao.sampler"), 7);
     float shaderAlbedo[3] = { 1.0f, 1.0f, 1.0f };
     SetShaderValue(dwarf.material.shader, shaderAlbedoLoc, shaderAlbedo, 3);
+    float shaderNormals[3] = { 0.5f, 0.5f, 1.0f };
+    SetShaderValue(dwarf.material.shader, shaderNormalsLoc, shaderNormals, 3);
     float shaderAo[3] = { 1.0f , 1.0f, 1.0f };
     SetShaderValue(dwarf.material.shader, shaderAoLoc, shaderAo, 3);
     float lightColor[3] = { 1.0f, 1.0f, 1.0f };
@@ -386,25 +393,29 @@ int main()
                         // Enable and bind reflection map
                         glActiveTexture(GL_TEXTURE1);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
-                        
+
                         // Enable and bind blurred reflection map
                         glActiveTexture(GL_TEXTURE2);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMapBlur);
-                        
+
                         // Enable and bind albedo map
                         glActiveTexture(GL_TEXTURE3);
                         glBindTexture(GL_TEXTURE_2D, albedoTex.id);
-                        
-                        // Enable and bind metallic map
+
+                        // Enable and bind normals map
                         glActiveTexture(GL_TEXTURE4);
-                        glBindTexture(GL_TEXTURE_2D, metallicTex.id);
-                        
-                        // Enable and bind roughness map
+                        glBindTexture(GL_TEXTURE_2D, normalsTex.id);
+
+                        // Enable and bind metallic map
                         glActiveTexture(GL_TEXTURE5);
-                        glBindTexture(GL_TEXTURE_2D, roughnessTex.id);
-                        
-                        // Enable and bind ambient occlusion map
+                        glBindTexture(GL_TEXTURE_2D, metallicTex.id);
+
+                        // Enable and bind roughness map
                         glActiveTexture(GL_TEXTURE6);
+                        glBindTexture(GL_TEXTURE_2D, roughnessTex.id);
+
+                        // Enable and bind ambient occlusion map
+                        glActiveTexture(GL_TEXTURE7);
                         glBindTexture(GL_TEXTURE_2D, aoTex.id);
 
                         // Draw model using PBR shader and textures maps
@@ -426,16 +437,20 @@ int main()
                         glActiveTexture(GL_TEXTURE3);
                         glBindTexture(GL_TEXTURE_2D, 0);
 
-                        // Disable and unbind metallic map
+                        // Disable and unbind normals map
                         glActiveTexture(GL_TEXTURE4);
                         glBindTexture(GL_TEXTURE_2D, 0);
 
-                        // Disable and unbind roughness map
+                        // Disable and unbind metallic map
                         glActiveTexture(GL_TEXTURE5);
                         glBindTexture(GL_TEXTURE_2D, 0);
 
-                        // Disable and unbind ambient occlusion map
+                        // Disable and unbind roughness map
                         glActiveTexture(GL_TEXTURE6);
+                        glBindTexture(GL_TEXTURE_2D, 0);
+
+                        // Disable and unbind ambient occlusion map
+                        glActiveTexture(GL_TEXTURE7);
                         glBindTexture(GL_TEXTURE_2D, 0);
                     }
                 }
@@ -470,6 +485,7 @@ int main()
     // Unload external and allocated resources
     UnloadModel(dwarf);
     UnloadTexture(albedoTex);
+    UnloadTexture(normalsTex);
     UnloadTexture(metallicTex);
     UnloadTexture(roughnessTex);
     UnloadTexture(aoTex);

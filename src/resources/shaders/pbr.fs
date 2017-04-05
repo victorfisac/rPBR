@@ -14,6 +14,7 @@ in vec3 fragNormal;
 
 // Material parameters
 uniform MaterialProperty albedo;
+uniform MaterialProperty normals;
 uniform MaterialProperty metallic;
 uniform MaterialProperty roughness;
 uniform MaterialProperty ao;
@@ -93,9 +94,14 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 
 void main()
 {
+    // Calculate lighting required attributes
     vec3 normal = normalize(fragNormal);
+    // vec3 normal = ComputeMaterialProperty(normals);
+    // normal = normalize(normal*2.0 - 1.0);
     vec3 view = normalize(viewPos - fragPos);
     vec3 refl = reflect(-view, normal);
+    
+    // Fetch material values from texture sampler or color attributes
     vec3 color = ComputeMaterialProperty(albedo);
     vec3 metal = ComputeMaterialProperty(metallic);
     vec3 rough = ComputeMaterialProperty(roughness);
