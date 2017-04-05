@@ -71,7 +71,7 @@ int main()
     float rotationAngle = 0.0f;
     Vector3 rotationAxis = { 0.0f, 1.0f, 0.0f };
     Vector3 lightPosition[MAX_LIGHTS] = { (Vector3){ -1.0f, 1.0f, -1.0f }, (Vector3){ 1.0, 1.0f, -1.0f }, (Vector3){ 1.0f, 1.0f, 1.0f }, (Vector3){ -1.0f, 1.0f, 1.0f } };
-    Camera camera = {{ 3.75f, 2.25f, 3.75f }, { 1.0f, 0.0f, 1.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f };
+    Camera camera = {{ 2.75f, 3.25f, 2.75f }, { 1.0f, 1.75f, 1.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f };
     SetCameraMode(camera, CAMERA_FREE);
     int selectedLight = 0;
 
