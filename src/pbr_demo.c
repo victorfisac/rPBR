@@ -146,7 +146,7 @@ int main()
     glUniform1i(GetShaderLocation(dwarf.material.shader, "ao.sampler"), 6);
     float shaderAlbedo[3] = { 1.0f, 1.0f, 1.0f };
     SetShaderValue(dwarf.material.shader, shaderAlbedoLoc, shaderAlbedo, 3);
-    float shaderAo[3] = { 1.0f , 0.0f, 0.0f };
+    float shaderAo[3] = { 1.0f , 1.0f, 1.0f };
     SetShaderValue(dwarf.material.shader, shaderAoLoc, shaderAo, 3);
     float lightColor[3] = { 1.0f, 1.0f, 1.0f };
     for (unsigned int i = 0; i < MAX_LIGHTS; i++) SetShaderValue(dwarf.material.shader, shaderLightColorLoc[i], lightColor, 3);
