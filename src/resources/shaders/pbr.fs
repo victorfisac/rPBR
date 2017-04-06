@@ -11,6 +11,8 @@ struct MaterialProperty {
 in vec2 fragTexCoord;
 in vec3 fragPos;
 in vec3 fragNormal;
+in vec3 fragTangent;
+in vec3 fragBinormal;
 
 // Material parameters
 uniform MaterialProperty albedo;
@@ -94,11 +96,18 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 
 void main()
 {
+    // Calculate TBN matrix
+    mat3 TBN = transpose(mat3(fragTangent, fragBinormal, fragNormal));
+
     // Calculate lighting required attributes
     vec3 normal = normalize(fragNormal);
-    // vec3 normal = ComputeMaterialProperty(normals);
-    // normal = normalize(normal*2.0 - 1.0);
     vec3 view = normalize(viewPos - fragPos);
+    if (normals.useSampler == 1)
+    {
+        normal = ComputeMaterialProperty(normals);
+        normal = normalize(normal*2.0 - 1.0);
+        view = normalize(TBN*normalize(viewPos - fragPos));
+    }
     vec3 refl = reflect(-view, normal);
     
     // Fetch material values from texture sampler or color attributes
@@ -116,8 +125,10 @@ void main()
     {
         // Calculate per-light radiance
         vec3 light = normalize(lightPos[i] - fragPos);
+        if (normals.useSampler == 1) light = normalize(TBN*normalize(lightPos[i] - fragPos));
         vec3 high = normalize(view + light);
         float distance = length(lightPos[i] - fragPos);
+        if (normals.useSampler == 1) distance = length(normalize(TBN*normalize(lightPos[i] - fragPos)));
         float attenuation = 1.0/(distance*distance);
         vec3 radiance = lightColor[i]*attenuation;
 
