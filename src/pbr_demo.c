@@ -88,13 +88,6 @@ int main()
     Texture2D roughnessTex = LoadTexture(PATH_TEXTURES_ROUGHNESS);
     Texture2D aoTex = LoadTexture(PATH_TEXTURES_AO);
 
-    // Apply trilinear filter to all textures
-    SetTextureFilter(albedoTex, FILTER_TRILINEAR);
-    SetTextureFilter(normalsTex, FILTER_TRILINEAR);
-    SetTextureFilter(metallicTex, FILTER_TRILINEAR);
-    SetTextureFilter(roughnessTex, FILTER_TRILINEAR);
-    SetTextureFilter(aoTex, FILTER_TRILINEAR);
-
     // Set up materials and lighting
     Material material = LoadDefaultMaterial();
     material.shader = pbrShader;

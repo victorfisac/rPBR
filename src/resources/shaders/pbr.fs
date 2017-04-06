@@ -109,7 +109,7 @@ void main()
         view = normalize(TBN*normalize(viewPos - fragPos));
     }
     vec3 refl = reflect(-view, normal);
-    
+
     // Fetch material values from texture sampler or color attributes
     vec3 color = ComputeMaterialProperty(albedo);
     vec3 metal = ComputeMaterialProperty(metallic);
