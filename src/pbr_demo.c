@@ -45,7 +45,7 @@
 #define         MAX_COLUMNS             1               // Columns to render models
 #define         MODEL_SCALE             1.30f           // Model scale transformation for rendering
 #define         MODEL_OFFSET            0.45f           // Distance between models for rendering
-#define         ROTATION_SPEED          0.25f;          // Models rotation speed
+#define         ROTATION_SPEED          0.25f           // Models rotation speed
 
 //----------------------------------------------------------------------------------
 // Function Declarations
@@ -87,6 +87,13 @@ int main()
     Texture2D metallicTex = LoadTexture(PATH_TEXTURES_METALLIC);
     Texture2D roughnessTex = LoadTexture(PATH_TEXTURES_ROUGHNESS);
     Texture2D aoTex = LoadTexture(PATH_TEXTURES_AO);
+
+    // Apply trilinear filter to all textures
+    SetTextureFilter(albedoTex, FILTER_TRILINEAR);
+    SetTextureFilter(normalsTex, FILTER_TRILINEAR);
+    SetTextureFilter(metallicTex, FILTER_TRILINEAR);
+    SetTextureFilter(roughnessTex, FILTER_TRILINEAR);
+    SetTextureFilter(aoTex, FILTER_TRILINEAR);
 
     // Set up materials and lighting
     Material material = LoadDefaultMaterial();
