@@ -9,7 +9,7 @@
 //----------------------------------------------------------------------------------
 // Includes
 //----------------------------------------------------------------------------------
-#include <stdlib.h>                     // Required for: exit()
+#include <stdlib.h>                     // Required for: exit(), free()
 #include <stdio.h>                      // Required for: printf()
 #include <string.h>                     // Required for: strcpy()
 
@@ -17,7 +17,7 @@
 #include "pbrmath.h"                    // Required for matrix and vectors math
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "external/stb_image.h"         // Required for image loading
+#include "external/stb_image.h"         // Required for image loading and saving
 #include "external/glad.h"              // Required for OpenGL API
 
 //----------------------------------------------------------------------------------
@@ -32,27 +32,45 @@
 #define         PATH_SKYBOX_FS              "resources/shaders/skybox.fs"
 #define         PATH_IRRADIANCE_VS          "resources/shaders/irradiance.vs"
 #define         PATH_IRRADIANCE_FS          "resources/shaders/irradiance.fs"
-#define         PATH_HDR                    "resources/textures/skybox_apartament.hdr"
-#define         PATH_HDR_BLUR               "resources/textures/skybox_apartament_blur.hdr"
-#define         PATH_TEXTURES_ALBEDO        "resources/textures/dwarf_albedo.png"
-#define         PATH_TEXTURES_NORMALS       "resources/textures/dwarf_normals.png"
-#define         PATH_TEXTURES_METALLIC      "resources/textures/dwarf_metallic.png"
-#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/dwarf_roughness.png"
-#define         PATH_TEXTURES_AO            "resources/textures/dwarf_ao.png"
+#define         PATH_HDR                    "resources/textures/hdr/hdr_apartament.hdr"
+#define         PATH_HDR_BLUR               "resources/textures/hdr/hdr_apartament_blur.hdr"
+#define         PATH_TEXTURES_ALBEDO        "resources/textures/dwarf/dwarf_albedo.png"
+#define         PATH_TEXTURES_NORMALS       "resources/textures/dwarf/dwarf_normals.png"
+#define         PATH_TEXTURES_METALLIC      "resources/textures/dwarf/dwarf_metallic.png"
+#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/dwarf/dwarf_roughness.png"
+#define         PATH_TEXTURES_AO            "resources/textures/dwarf/dwarf_ao.png"
 
 #define         MAX_LIGHTS              4               // Max lights supported by shader
 #define         MAX_ROWS                1               // Rows to render models
 #define         MAX_COLUMNS             1               // Columns to render models
-#define         MODEL_SCALE             1.30f           // Model scale transformation for rendering
+#define         MODEL_SCALE             1.5f            // Model scale transformation for rendering
 #define         MODEL_OFFSET            0.45f           // Distance between models for rendering
 #define         ROTATION_SPEED          0.25f           // Models rotation speed
+
+//----------------------------------------------------------------------------------
+// Structs and enums
+//----------------------------------------------------------------------------------
+typedef enum {
+    DEFAULT,
+    ALBEDO,
+    NORMALS,
+    METALLIC,
+    ROUGHNESS,
+    AMBIENT_OCCLUSION,
+    LIGHTING,
+    FRESNEL,
+    IRRADIANCE,
+    REFLECTION
+} RenderMode;
 
 //----------------------------------------------------------------------------------
 // Function Declarations
 //----------------------------------------------------------------------------------
 unsigned int LoadHighDynamicRange(const char *filename);        // Loads a high dynamic range (HDR) format file as linear float and converts it to a texture returning its id
 void UnloadHighDynamicRange(unsigned int id);                   // Unloads a high dynamic range (HDR) created texture
-void RenderCube();                                              // RenderCube() Renders a 1x1 3D cube in NDC
+void CaptureScreenshot(int width, int height);                  // Take screenshot from screen and save it
+unsigned char *ReadScreenPixels(int width, int height);         // Read screen pixel data (color buffer)
+void RenderCube(void);                                          // RenderCube() Renders a 1x1 3D cube in NDC
 
 //----------------------------------------------------------------------------------
 // Main program
@@ -72,12 +90,16 @@ int main()
     float rotationAngle = 0.0f;
     Vector3 rotationAxis = { 0.0f, 1.0f, 0.0f };
     Vector3 lightPosition[MAX_LIGHTS] = { (Vector3){ -1.0f, 1.0f, -1.0f }, (Vector3){ 1.0, 1.0f, -1.0f }, (Vector3){ 1.0f, 1.0f, 1.0f }, (Vector3){ -1.0f, 1.0f, 1.0f } };
-    Camera camera = {{ 2.75f, 3.25f, 2.75f }, { 1.0f, 1.75f, 1.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f };
+    Camera camera = {{ 2.75f, 3.55f, 2.75f }, { 1.0f, 2.05f, 1.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f };
     SetCameraMode(camera, CAMERA_FREE);
     int selectedLight = 0;
+    RenderMode mode = DEFAULT;
+    bool drawGrid = false;
+    bool drawLights = false;
+    bool drawSkybox = true;
 
     // Load external resources
-    Model dwarf = LoadModel(PATH_MODEL);
+    Model model = LoadModel(PATH_MODEL);
     Shader pbrShader = LoadShader(PATH_PBR_VS, PATH_PBR_FS);
     Shader cubeShader = LoadShader(PATH_CUBE_VS, PATH_CUBE_FS);
     Shader skyShader = LoadShader(PATH_SKYBOX_VS, PATH_SKYBOX_FS);
@@ -91,16 +113,17 @@ int main()
     // Set up materials and lighting
     Material material = LoadDefaultMaterial();
     material.shader = pbrShader;
-    dwarf.material = material;
+    model.material = material;
 
     // Get PBR shader locations
-    int shaderViewLoc = GetShaderLocation(dwarf.material.shader, "viewPos");
-    int shaderModelLoc = GetShaderLocation(dwarf.material.shader, "mMatrix");
-    int shaderAlbedoLoc = GetShaderLocation(dwarf.material.shader, "albedo.color");
-    int shaderNormalsLoc = GetShaderLocation(dwarf.material.shader, "normals.color");
-    int shaderMetallicLoc = GetShaderLocation(dwarf.material.shader, "metallic.color");    
-    int shaderRoughnessLoc = GetShaderLocation(dwarf.material.shader, "roughness.color");
-    int shaderAoLoc = GetShaderLocation(dwarf.material.shader, "ao.color");
+    int shaderModeLoc = GetShaderLocation(model.material.shader, "renderMode");
+    int shaderViewLoc = GetShaderLocation(model.material.shader, "viewPos");
+    int shaderModelLoc = GetShaderLocation(model.material.shader, "mMatrix");
+    int shaderAlbedoLoc = GetShaderLocation(model.material.shader, "albedo.color");
+    int shaderNormalsLoc = GetShaderLocation(model.material.shader, "normals.color");
+    int shaderMetallicLoc = GetShaderLocation(model.material.shader, "metallic.color");    
+    int shaderRoughnessLoc = GetShaderLocation(model.material.shader, "roughness.color");
+    int shaderAoLoc = GetShaderLocation(model.material.shader, "ao.color");
     int shaderLightPosLoc[MAX_LIGHTS] = { -1 };
     int shaderLightColorLoc[MAX_LIGHTS] = { -1 };
 
@@ -108,14 +131,14 @@ int main()
     {
         char lightPosName[16] = "lightPos[x]\0";
         lightPosName[9] = '0' + i;
-        shaderLightPosLoc[i] = GetShaderLocation(dwarf.material.shader, lightPosName);
+        shaderLightPosLoc[i] = GetShaderLocation(model.material.shader, lightPosName);
     }
 
     for (unsigned int i = 0; i < MAX_LIGHTS; i++)
     {
         char lightColorName[16] = "lightColor[x]\0";
         lightColorName[11] = '0' + i;
-        shaderLightColorLoc[i] = GetShaderLocation(dwarf.material.shader, lightColorName);
+        shaderLightColorLoc[i] = GetShaderLocation(model.material.shader, lightColorName);
     }
 
     // Get cubemap shader locations
@@ -134,29 +157,29 @@ int main()
     int irradianceViewLoc = GetShaderLocation(irradianceShader, "view");
 
     // Set up PBR shader constant values
-    glUseProgram(dwarf.material.shader.id);
-    glUniform1i(GetShaderLocation(dwarf.material.shader, "albedo.useSampler"), 1);
-    glUniform1i(GetShaderLocation(dwarf.material.shader, "normals.useSampler"), 1);
-    glUniform1i(GetShaderLocation(dwarf.material.shader, "metallic.useSampler"), 1);
-    glUniform1i(GetShaderLocation(dwarf.material.shader, "roughness.useSampler"), 1);
-    glUniform1i(GetShaderLocation(dwarf.material.shader, "ao.useSampler"), 1);
+    glUseProgram(model.material.shader.id);
+    glUniform1i(GetShaderLocation(model.material.shader, "albedo.useSampler"), 1);
+    glUniform1i(GetShaderLocation(model.material.shader, "normals.useSampler"), 1);
+    glUniform1i(GetShaderLocation(model.material.shader, "metallic.useSampler"), 1);
+    glUniform1i(GetShaderLocation(model.material.shader, "roughness.useSampler"), 1);
+    glUniform1i(GetShaderLocation(model.material.shader, "ao.useSampler"), 1);
 
-    glUniform1i(GetShaderLocation(dwarf.material.shader, "irradianceMap"), 0);
-    glUniform1i(GetShaderLocation(dwarf.material.shader, "reflectionMap"), 1);
-    glUniform1i(GetShaderLocation(dwarf.material.shader, "blurredMap"), 2);
-    glUniform1i(GetShaderLocation(dwarf.material.shader, "albedo.sampler"), 3);
-    glUniform1i(GetShaderLocation(dwarf.material.shader, "normals.sampler"), 4);
-    glUniform1i(GetShaderLocation(dwarf.material.shader, "metallic.sampler"), 5);
-    glUniform1i(GetShaderLocation(dwarf.material.shader, "roughness.sampler"), 6);
-    glUniform1i(GetShaderLocation(dwarf.material.shader, "ao.sampler"), 7);
+    glUniform1i(GetShaderLocation(model.material.shader, "irradianceMap"), 0);
+    glUniform1i(GetShaderLocation(model.material.shader, "reflectionMap"), 1);
+    glUniform1i(GetShaderLocation(model.material.shader, "blurredMap"), 2);
+    glUniform1i(GetShaderLocation(model.material.shader, "albedo.sampler"), 3);
+    glUniform1i(GetShaderLocation(model.material.shader, "normals.sampler"), 4);
+    glUniform1i(GetShaderLocation(model.material.shader, "metallic.sampler"), 5);
+    glUniform1i(GetShaderLocation(model.material.shader, "roughness.sampler"), 6);
+    glUniform1i(GetShaderLocation(model.material.shader, "ao.sampler"), 7);
     float shaderAlbedo[3] = { 1.0f, 1.0f, 1.0f };
-    SetShaderValue(dwarf.material.shader, shaderAlbedoLoc, shaderAlbedo, 3);
+    SetShaderValue(model.material.shader, shaderAlbedoLoc, shaderAlbedo, 3);
     float shaderNormals[3] = { 0.5f, 0.5f, 1.0f };
-    SetShaderValue(dwarf.material.shader, shaderNormalsLoc, shaderNormals, 3);
+    SetShaderValue(model.material.shader, shaderNormalsLoc, shaderNormals, 3);
     float shaderAo[3] = { 1.0f , 1.0f, 1.0f };
-    SetShaderValue(dwarf.material.shader, shaderAoLoc, shaderAo, 3);
+    SetShaderValue(model.material.shader, shaderAoLoc, shaderAo, 3);
     float lightColor[3] = { 1.0f, 1.0f, 1.0f };
-    for (unsigned int i = 0; i < MAX_LIGHTS; i++) SetShaderValue(dwarf.material.shader, shaderLightColorLoc[i], lightColor, 3);
+    for (unsigned int i = 0; i < MAX_LIGHTS; i++) SetShaderValue(model.material.shader, shaderLightColorLoc[i], lightColor, 3);
 
     // Set up cubemap shader constant values
     glUseProgram(cubeShader.id);
@@ -328,30 +351,60 @@ int main()
         rotationAngle += ROTATION_SPEED;
 
         // Check selected light inputs
-        if (IsKeyPressed('1')) selectedLight = 0;
-        else if (IsKeyPressed('2')) selectedLight = 1;
-        else if (IsKeyPressed('3')) selectedLight = 2;
-        else if (IsKeyPressed('4')) selectedLight = 3;
+        if (IsKeyPressed(KEY_F1)) selectedLight = 0;
+        else if (IsKeyPressed(KEY_F2)) selectedLight = 1;
+        else if (IsKeyPressed(KEY_F3)) selectedLight = 2;
+        else if (IsKeyPressed(KEY_F4)) selectedLight = 3;
 
         // Check for light position movement inputs
         if (IsKeyDown(KEY_UP)) lightPosition[selectedLight].z += 0.1f;
         else if (IsKeyDown(KEY_DOWN)) lightPosition[selectedLight].z -= 0.1f;
         if (IsKeyDown(KEY_RIGHT)) lightPosition[selectedLight].x += 0.1f;
         else if (IsKeyDown(KEY_LEFT)) lightPosition[selectedLight].x -= 0.1f;
-        if (IsKeyDown('W')) lightPosition[selectedLight].y += 0.1f;
-        else if (IsKeyDown('S')) lightPosition[selectedLight].y -= 0.1f;
+        if (IsKeyDown(KEY_W)) lightPosition[selectedLight].y += 0.1f;
+        else if (IsKeyDown(KEY_S)) lightPosition[selectedLight].y -= 0.1f;
+        
+        // Check for render mode inputs
+        if (IsKeyPressed('1')) mode = DEFAULT;
+        else if (IsKeyPressed('2')) mode = ALBEDO;
+        else if (IsKeyPressed(KEY_THREE)) mode = NORMALS;
+        else if (IsKeyPressed(KEY_FOUR)) mode = METALLIC;
+        else if (IsKeyPressed(KEY_FIVE)) mode = ROUGHNESS;
+        else if (IsKeyPressed(KEY_SIX)) mode = AMBIENT_OCCLUSION;
+        else if (IsKeyPressed(KEY_SEVEN)) mode = LIGHTING;
+        else if (IsKeyPressed(KEY_EIGHT)) mode = FRESNEL;
+        else if (IsKeyPressed(KEY_NINE)) mode = IRRADIANCE;
+        else if (IsKeyPressed(KEY_ZERO)) mode = REFLECTION;
+        
+        // Check for scene reset input
+        if (IsKeyPressed(KEY_R))
+        {
+            rotationAngle = 0.0f;
+            camera.position = (Vector3){ 2.75f, 3.55f, 2.75f };
+            camera.target = (Vector3){ 1.0f, 2.05f, 1.0f };
+            camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
+            camera.fovy = 45.0f;
+            SetCameraMode(camera, CAMERA_FREE);
+        }
+
+        // Check for capture screenshot input
+        if (IsKeyPressed(KEY_P)) CaptureScreenshot(screenWidth, screenHeight);
+
+        // Send current mode to shader
+        int shaderMode[1] = { (int)mode };
+        SetShaderValuei(model.material.shader, shaderModeLoc, shaderMode, 1);
 
         // Update current light position
         for (unsigned int i = 0; i < MAX_LIGHTS; i++)
         {
             float lightPos[3] = { lightPosition[i].x,  lightPosition[i].y, lightPosition[i].z };
-            SetShaderValue(dwarf.material.shader, shaderLightPosLoc[i], lightPos, 3);
+            SetShaderValue(model.material.shader, shaderLightPosLoc[i], lightPos, 3);
         }
 
         // Update camera values and send them to shader
         UpdateCamera(&camera);
         float cameraPos[3] = { camera.position.x, camera.position.y, camera.position.z };
-        SetShaderValue(dwarf.material.shader, shaderViewLoc, cameraPos, 3);
+        SetShaderValue(model.material.shader, shaderViewLoc, cameraPos, 3);
         //--------------------------------------------------------------------------
 
         // Draw
@@ -363,13 +416,13 @@ int main()
             Begin3dMode(camera);
 
                 // Draw ground grid
-                DrawGrid(10, 1.0f);
+                if (drawGrid) DrawGrid(10, 1.0f);
 
                 // Draw models grid with parametric metalness and roughness values
                 for (unsigned int rows = 0; rows < MAX_ROWS; rows++)
                 {
                     float shaderMetallic[3] = { (float)rows/(float)MAX_ROWS , 0.0f, 0.0f };
-                    SetShaderValue(dwarf.material.shader, shaderMetallicLoc, shaderMetallic, 3);
+                    SetShaderValue(model.material.shader, shaderMetallicLoc, shaderMetallic, 3);
 
                     for (unsigned int col = 0; col < MAX_COLUMNS; col++)
                     {
@@ -377,16 +430,16 @@ int main()
                         ClampFloat(&rough, 0.05f, 1.0f);
 
                         float shaderRoughness[3] = { rough, 0.0f, 0.0f };
-                        SetShaderValue(dwarf.material.shader, shaderRoughnessLoc, shaderRoughness, 3);
+                        SetShaderValue(model.material.shader, shaderRoughnessLoc, shaderRoughness, 3);
 
                         Matrix matScale = MatrixScale(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE);
                         Matrix matRotation = MatrixRotate(rotationAxis, rotationAngle*DEG2RAD);
                         Matrix matTranslation = MatrixTranslate(rows*MODEL_OFFSET, 0.0f, col*MODEL_OFFSET);
                         Matrix transform = MatrixMultiply(MatrixMultiply(matScale, matRotation), matTranslation);
-                        SetShaderValueMatrix(dwarf.material.shader, shaderModelLoc, transform);
+                        SetShaderValueMatrix(model.material.shader, shaderModelLoc, transform);
 
                         // Enable and bind irradiance map
-                        glUseProgram(dwarf.material.shader.id);
+                        glUseProgram(model.material.shader.id);
                         glActiveTexture(GL_TEXTURE0);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMap);
 
@@ -419,7 +472,7 @@ int main()
                         glBindTexture(GL_TEXTURE_2D, aoTex.id);
 
                         // Draw model using PBR shader and textures maps
-                        DrawModelEx(dwarf, (Vector3){ rows*MODEL_OFFSET, 0.0f, col*MODEL_OFFSET }, rotationAxis, rotationAngle, (Vector3){ MODEL_SCALE, MODEL_SCALE, MODEL_SCALE }, WHITE);
+                        DrawModelEx(model, (Vector3){ rows*MODEL_OFFSET, 0.0f, col*MODEL_OFFSET }, rotationAxis, rotationAngle, (Vector3){ MODEL_SCALE, MODEL_SCALE, MODEL_SCALE }, WHITE);
 
                         // Disable and unbind irradiance map
                         glActiveTexture(GL_TEXTURE0);
@@ -456,11 +509,12 @@ int main()
                 }
 
                 // Draw light gizmos
-                for (unsigned int i = 0; i < MAX_LIGHTS; i++)
+                for (unsigned int i = 0; ((i < MAX_LIGHTS) && drawLights); i++)
                 {
                     DrawSphere(lightPosition[i], 0.025f, YELLOW);
                     DrawSphereWires(lightPosition[i], 0.025f, 16, 16, ORANGE);
                 }
+
 
                 // Calculate view matrix for custom shaders
                 Matrix view = MatrixLookAt(camera.position, camera.target, camera.up);
@@ -470,7 +524,7 @@ int main()
                 glUseProgram(skyShader.id);
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
-                RenderCube();
+                if (drawSkybox) RenderCube();
 
             End3dMode();
 
@@ -483,13 +537,13 @@ int main()
     // De-Initialization
     //------------------------------------------------------------------------------
     // Unload external and allocated resources
-    UnloadModel(dwarf);
+    UnloadModel(model);
     UnloadTexture(albedoTex);
     UnloadTexture(normalsTex);
     UnloadTexture(metallicTex);
     UnloadTexture(roughnessTex);
     UnloadTexture(aoTex);
-    UnloadShader(dwarf.material.shader);
+    UnloadShader(pbrShader);
     UnloadShader(cubeShader);
     UnloadShader(skyShader);
     UnloadShader(irradianceShader);
@@ -541,10 +595,48 @@ void UnloadHighDynamicRange(unsigned int id)
     if (id != 0) glDeleteTextures(1, &id);
 }
 
-// RenderCube() Renders a 1x1 3D cube in NDC.
+// Take screenshot from screen and save it
+void CaptureScreenshot(int width, int height)
+{
+    // Read screen pixels and save image as PNG
+    unsigned char *imgData = ReadScreenPixels(width, height);
+    stbi_write_png("screenshot.png", width, height, 4, imgData, width*4);
+    free(imgData);
+}
+
+// Read screen pixel data (color buffer)
+unsigned char *ReadScreenPixels(int width, int height)
+{
+    unsigned char *screenData = (unsigned char *)calloc(width*height*4, sizeof(unsigned char));
+
+    // NOTE: glReadPixels returns image flipped vertically -> (0,0) is the bottom left corner of the framebuffer
+    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, screenData);
+
+    // Flip image vertically!
+    unsigned char *imgData = (unsigned char *)malloc(width*height*sizeof(unsigned char)*4);
+
+    for (int y = height - 1; y >= 0; y--)
+    {
+        for (int x = 0; x < (width*4); x++)
+        {
+            // Flip line
+            imgData[((height - 1) - y)*width*4 + x] = screenData[(y*width*4) + x];
+
+            // Set alpha component value to 255 (no trasparent image retrieval)
+            // NOTE: Alpha value has already been applied to RGB in framebuffer, we don't need it!
+            if (((x + 1)%4) == 0) imgData[((height - 1) - y)*width*4 + x] = 255;
+        }
+    }
+
+    free(screenData);
+
+    return imgData;     // NOTE: image data should be freed
+}
+
+// Renders a 1x1 3D cube in NDC
 GLuint cubeVAO = 0;
 GLuint cubeVBO = 0;
-void RenderCube()
+void RenderCube(void)
 {
     // Initialize (if necessary)
     if (cubeVAO == 0)

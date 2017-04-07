@@ -31,18 +31,31 @@ uniform samplerCube reflectionMap;
 uniform samplerCube blurredMap;
 
 // Other parameters
+uniform int renderMode;
 uniform vec3 viewPos;
 const float PI = 3.14159265359;
 
 // Output fragment color
 out vec4 finalColor;
 
+vec3 blend(vec3 bg, vec3 fg);
 vec3 ComputeMaterialProperty(MaterialProperty property);
 float DistributionGGX(vec3 N, vec3 H, float roughness);
 float GeometrySchlickGGX(float NdotV, float roughness);
 float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 vec3 fresnelSchlick(float cosTheta, vec3 F0);
 vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
+
+vec3 blend(vec3 bg, vec3 fg)
+{
+    vec3 result = vec3(0.0);
+    
+    result.x = ((bg.x < 0.5) ? (2.0*bg.x*fg.x) : (1.0 - 2.0*(1.0 - bg.x)*(1.0 - fg.x)));
+    result.y = ((bg.y < 0.5) ? (2.0*bg.y*fg.y) : (1.0 - 2.0*(1.0 - bg.y)*(1.0 - fg.y)));
+    result.z = ((bg.z < 0.5) ? (2.0*bg.z*fg.z) : (1.0 - 2.0*(1.0 - bg.z)*(1.0 - fg.z)));
+    
+    return result;
+}
 
 vec3 ComputeMaterialProperty(MaterialProperty property)
 {
@@ -114,12 +127,14 @@ void main()
     vec3 color = ComputeMaterialProperty(albedo);
     vec3 metal = ComputeMaterialProperty(metallic);
     vec3 rough = ComputeMaterialProperty(roughness);
+    vec3 occlusion = ComputeMaterialProperty(ao);
 
     vec3 f0 = vec3(0.04);
     f0 = mix(f0, color, metal.r);
 
-    // Reflectance equation
+    // Lighting equation
     vec3 Lo = vec3(0.0);
+    vec3 lightDot = vec3(0.0);
 
     for (int i = 0; i < MAX_LIGHTS; i++)
     {
@@ -148,6 +163,7 @@ void main()
         // Add to outgoing radiance Lo
         float NdotL = max(dot(normal, light), 0.0);
         Lo += (kD*color/PI + brdf)*radiance*NdotL;
+        lightDot += radiance*NdotL + brdf;
     }
 
     // Calculate specular fresnel and energy conservation
@@ -155,7 +171,7 @@ void main()
     vec3 kD = 1.0 - kS;
 
     // Calculate indirect diffuse
-    vec3 irradiance = texture(irradianceMap, normal).rgb;
+    vec3 irradiance = texture(irradianceMap, fragNormal).rgb;
 
     // Calculate indirect specular and reflection
     vec3 fullReflection = texture(reflectionMap, refl).rgb;
@@ -167,7 +183,17 @@ void main()
     vec3 ambient = kD*diffuse + kS*reflection;
 
     // Calculate final fragment color
-    vec3 fragmentColor = (ambient + Lo)*ComputeMaterialProperty(ao);
+    vec3 fragmentColor = vec3(0.0);
+    if (renderMode == 0) fragmentColor = (ambient + Lo)*occlusion;       // Default
+    else if (renderMode == 1) fragmentColor = color;                     // Albedo
+    else if (renderMode == 2) fragmentColor = blend(fragNormal, normal); // Normals
+    else if (renderMode == 3) fragmentColor = metal;                     // Metallic
+    else if (renderMode == 4) fragmentColor = rough;                     // Roughness
+    else if (renderMode == 5) fragmentColor = occlusion;                 // Ambient Occlusion
+    else if (renderMode == 6) fragmentColor = lightDot;                  // Lighting
+    else if (renderMode == 7) fragmentColor = kS;                        // Fresnel
+    else if (renderMode == 8) fragmentColor = irradiance;                // Irradiance
+    else if (renderMode == 9) fragmentColor = reflection;                // Reflection
 
     // Apply gamma correction
     fragmentColor = fragmentColor/(fragmentColor + vec3(1.0));
