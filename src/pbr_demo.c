@@ -9,16 +9,17 @@
 //----------------------------------------------------------------------------------
 // Includes
 //----------------------------------------------------------------------------------
-#include <stdlib.h>                     // Required for: exit(), free()
-#include <stdio.h>                      // Required for: printf()
-#include <string.h>                     // Required for: strcpy()
+#include <stdlib.h>                         // Required for: exit(), free()
+#include <stdio.h>                          // Required for: printf()
+#include <string.h>                         // Required for: strcpy()
 
-#include "raylib.h"                     // Required for raylib framework
-#include "pbrmath.h"                    // Required for matrix and vectors math
+#include "raylib.h"                         // Required for raylib framework
+#include "pbrmath.h"                        // Required for matrix and vectors math
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "external/stb_image.h"         // Required for image loading and saving
-#include "external/glad.h"              // Required for OpenGL API
+#include "external/stb_image.h"             // Required for image loading
+#include "external/stb_image_write.h"       // Required for image saving
+#include "external/glad.h"                  // Required for OpenGL API
 
 //----------------------------------------------------------------------------------
 // Defines
@@ -40,12 +41,12 @@
 #define         PATH_TEXTURES_ROUGHNESS     "resources/textures/dwarf/dwarf_roughness.png"
 #define         PATH_TEXTURES_AO            "resources/textures/dwarf/dwarf_ao.png"
 
-#define         MAX_LIGHTS              4               // Max lights supported by shader
-#define         MAX_ROWS                1               // Rows to render models
-#define         MAX_COLUMNS             1               // Columns to render models
-#define         MODEL_SCALE             1.5f            // Model scale transformation for rendering
-#define         MODEL_OFFSET            0.45f           // Distance between models for rendering
-#define         ROTATION_SPEED          0.25f           // Models rotation speed
+#define         MAX_LIGHTS                  4               // Max lights supported by shader
+#define         MAX_ROWS                    1               // Rows to render models
+#define         MAX_COLUMNS                 1               // Columns to render models
+#define         MODEL_SCALE                 1.5f            // Model scale transformation for rendering
+#define         MODEL_OFFSET                0.45f           // Distance between models for rendering
+#define         ROTATION_SPEED              0.25f           // Models rotation speed
 
 //----------------------------------------------------------------------------------
 // Structs and enums
