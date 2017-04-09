@@ -119,10 +119,9 @@ void main()
         normal = ComputeMaterialProperty(normals);
         normal = normalize(normal*2.0 - 1.0);
         normal = normalize(normal*TBN);
-        view = normalize(TBN*normalize(viewPos - fragPos));
 
         // Convert tangent space normal to world space due to cubemap reflection calculations
-        refl = normalize(reflect(normalize(fragPos - viewPos), normal));
+        refl = normalize(reflect(-view, normal));
     }
 
     // Calculate reflectance at normal incidence
@@ -137,10 +136,8 @@ void main()
     {
         // Calculate per-light radiance
         vec3 light = normalize(lightPos[i] - fragPos);
-        if (normals.useSampler == 1) light = normalize(TBN*normalize(lightPos[i] - fragPos));
         vec3 high = normalize(view + light);
         float distance = length(lightPos[i] - fragPos);
-        if (normals.useSampler == 1) distance = length(normalize(TBN*normalize(lightPos[i] - fragPos)));
         float attenuation = 1.0/(distance*distance);
         vec3 radiance = lightColor[i]*attenuation;
 
