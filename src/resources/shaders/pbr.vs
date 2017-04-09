@@ -16,7 +16,6 @@ out vec3 fragPos;
 out vec3 fragNormal;
 out vec3 fragTangent;
 out vec3 fragBinormal;
-out mat4 fragModelMatrix;
 
 void main()
 {
@@ -36,7 +35,6 @@ void main()
     fragTangent = normalize(fragTangent - dot(fragTangent, fragNormal)*fragNormal);
     fragBinormal = normalize(normalMatrix*vertexBinormal);
     fragBinormal = cross(fragNormal, fragTangent);
-    fragModelMatrix = mMatrix;
 
     // Calculate final vertex position
     gl_Position = mvpMatrix*vec4(vertexPosition, 1.0);

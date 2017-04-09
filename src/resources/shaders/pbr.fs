@@ -14,7 +14,6 @@ in vec3 fragPos;
 in vec3 fragNormal;
 in vec3 fragTangent;
 in vec3 fragBinormal;
-in mat4 fragModelMatrix;
 
 // Material parameters
 uniform MaterialProperty albedo;
@@ -107,7 +106,6 @@ void main()
 
     // Calculate TBN and RM matrices
     mat3 TBN = transpose(mat3(fragTangent, fragBinormal, fragNormal));
-    mat3 RM = mat3(fragModelMatrix[0].xyz, fragModelMatrix[1].xyz, fragModelMatrix[2].xyz);
 
     // Calculate lighting required attributes
     vec3 normal = normalize(fragNormal);
@@ -120,10 +118,11 @@ void main()
         // Fetch normal map color and transform lighting values to tangent space
         normal = ComputeMaterialProperty(normals);
         normal = normalize(normal*2.0 - 1.0);
+        normal = normalize(normal*TBN);
         view = normalize(TBN*normalize(viewPos - fragPos));
 
         // Convert tangent space normal to world space due to cubemap reflection calculations
-        refl = normalize(reflect(normalize(fragPos - viewPos), normalize(RM*(normal*TBN))));
+        refl = normalize(reflect(normalize(fragPos - viewPos), normal));
     }
 
     // Calculate reflectance at normal incidence
@@ -190,7 +189,7 @@ void main()
     // Calculate fragment color based on render mode
     vec3 fragmentColor = ambient + Lo;                                      // Physically Based Rendering
     if (renderMode == 1) fragmentColor = color;                             // Albedo
-    else if (renderMode == 2) fragmentColor = normalize(RM*(normal*TBN));   // Normals
+    else if (renderMode == 2) fragmentColor = normal;                       // Normals
     else if (renderMode == 3) fragmentColor = metal;                        // Metallic
     else if (renderMode == 4) fragmentColor = rough;                        // Roughness
     else if (renderMode == 5) fragmentColor = occlusion;                    // Ambient Occlusion
