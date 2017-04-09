@@ -47,6 +47,8 @@
 #define         MODEL_SCALE                 1.5f            // Model scale transformation for rendering
 #define         MODEL_OFFSET                0.45f           // Distance between models for rendering
 #define         ROTATION_SPEED              0.25f           // Models rotation speed
+#define         CUBEMAP_SIZE                1024            // Cubemap texture size
+#define         IRRADIANCE_SIZE             32              // Irradiance map from cubemap texture size
 
 //----------------------------------------------------------------------------------
 // Structs and enums
@@ -95,8 +97,8 @@ int main()
     SetCameraMode(camera, CAMERA_FREE);
     int selectedLight = 0;
     RenderMode mode = DEFAULT;
-    bool drawGrid = false;
-    bool drawLights = false;
+    bool drawGrid = true;
+    bool drawLights = true;
     bool drawSkybox = true;
 
     // Load external resources
@@ -208,7 +210,7 @@ int main()
     glGenRenderbuffers(1, &captureRBO);
     glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
     glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 1024, 1024);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, CUBEMAP_SIZE, CUBEMAP_SIZE);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, captureRBO);
 
     // Set up cubemap to render and attach to framebuffer
@@ -216,7 +218,7 @@ int main()
     unsigned int cubeMap;
     glGenTextures(1, &cubeMap);
     glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
-    for (unsigned int i = 0; i < 6; i++) glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 1024, 1024, 0, GL_RGB, GL_FLOAT, NULL);
+    for (unsigned int i = 0; i < 6; i++) glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, CUBEMAP_SIZE, CUBEMAP_SIZE, 0, GL_RGB, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
@@ -241,7 +243,7 @@ int main()
     glBindTexture(GL_TEXTURE_2D, skyTex);
     SetShaderValueMatrix(cubeShader, cubeProjectionLoc, captureProjection);
 
-    glViewport(0, 0, 1024, 1024);     // Note: don't forget to configure the viewport to the capture dimensions
+    glViewport(0, 0, CUBEMAP_SIZE, CUBEMAP_SIZE);     // Note: don't forget to configure the viewport to the capture dimensions
     glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
 
     for (unsigned int i = 0; i < 6; i++)
@@ -258,7 +260,7 @@ int main()
     unsigned int irradianceMap;
     glGenTextures(1, &irradianceMap);
     glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMap);
-    for (unsigned int i = 0; i < 6; i++) glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 32, 32, 0, GL_RGB, GL_FLOAT, NULL);
+    for (unsigned int i = 0; i < 6; i++) glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, IRRADIANCE_SIZE, IRRADIANCE_SIZE, 0, GL_RGB, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
@@ -267,7 +269,7 @@ int main()
 
     glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
     glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 32, 32);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, IRRADIANCE_SIZE, IRRADIANCE_SIZE);
 
     // Solve diffuse integral by convolution to create an irradiance cubemap
     glUseProgram(irradianceShader.id);
@@ -275,7 +277,7 @@ int main()
     glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
     SetShaderValueMatrix(irradianceShader, irradianceProjectionLoc, captureProjection);
 
-    glViewport(0, 0, 32, 32);   // Note: don't forget to configure the viewport to the capture dimensions
+    glViewport(0, 0, IRRADIANCE_SIZE, IRRADIANCE_SIZE);   // Note: don't forget to configure the viewport to the capture dimensions
     glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
 
     for (unsigned int i = 0; i < 6; i++)

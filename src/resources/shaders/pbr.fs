@@ -13,6 +13,7 @@ in vec3 fragPos;
 in vec3 fragNormal;
 in vec3 fragTangent;
 in vec3 fragBinormal;
+in mat4 fragModelMatrix;
 
 // Material parameters
 uniform MaterialProperty albedo;
@@ -109,19 +110,26 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 
 void main()
 {
-    // Calculate TBN matrix
+    // Calculate TBN and RM matrices
     mat3 TBN = transpose(mat3(fragTangent, fragBinormal, fragNormal));
+    mat3 RM = mat3(fragModelMatrix[0].xyz, fragModelMatrix[1].xyz, fragModelMatrix[2].xyz);
 
     // Calculate lighting required attributes
     vec3 normal = normalize(fragNormal);
     vec3 view = normalize(viewPos - fragPos);
+    vec3 refl = reflect(-view, normal);
+
+    // Check if normal mapping is enabled
     if (normals.useSampler == 1)
     {
+        // Fetch normal map color and transform lighting values to tangent space
         normal = ComputeMaterialProperty(normals);
         normal = normalize(normal*2.0 - 1.0);
         view = normalize(TBN*normalize(viewPos - fragPos));
+
+        // Convert tangent space normal to world space due to cubemap reflection calculations
+        refl = normalize(reflect(normalize(fragPos - viewPos), normalize(RM*(normal*TBN))));
     }
-    vec3 refl = reflect(-view, normal);
 
     // Fetch material values from texture sampler or color attributes
     vec3 color = ComputeMaterialProperty(albedo);
@@ -129,10 +137,11 @@ void main()
     vec3 rough = ComputeMaterialProperty(roughness);
     vec3 occlusion = ComputeMaterialProperty(ao);
 
+    // Calculate diffuse color from metalness value
     vec3 f0 = vec3(0.04);
     f0 = mix(f0, color, metal.r);
 
-    // Lighting equation
+    // Calculate lighting for all lights
     vec3 Lo = vec3(0.0);
     vec3 lightDot = vec3(0.0);
 
@@ -184,20 +193,21 @@ void main()
 
     // Calculate final fragment color
     vec3 fragmentColor = vec3(0.0);
-    if (renderMode == 0) fragmentColor = (ambient + Lo)*occlusion;       // Default
-    else if (renderMode == 1) fragmentColor = color;                     // Albedo
-    else if (renderMode == 2) fragmentColor = blend(fragNormal, normal); // Normals
-    else if (renderMode == 3) fragmentColor = metal;                     // Metallic
-    else if (renderMode == 4) fragmentColor = rough;                     // Roughness
-    else if (renderMode == 5) fragmentColor = occlusion;                 // Ambient Occlusion
-    else if (renderMode == 6) fragmentColor = lightDot;                  // Lighting
-    else if (renderMode == 7) fragmentColor = kS;                        // Fresnel
-    else if (renderMode == 8) fragmentColor = irradiance;                // Irradiance
-    else if (renderMode == 9) fragmentColor = reflection;                // Reflection
+    if (renderMode == 0) fragmentColor = (ambient + Lo)*occlusion;          // Default
+    else if (renderMode == 1) fragmentColor = color;                        // Albedo
+    else if (renderMode == 2) fragmentColor = normalize(RM*(normal*TBN));   // Normals
+    else if (renderMode == 3) fragmentColor = metal;                        // Metallic
+    else if (renderMode == 4) fragmentColor = rough;                        // Roughness
+    else if (renderMode == 5) fragmentColor = occlusion;                    // Ambient Occlusion
+    else if (renderMode == 6) fragmentColor = lightDot;                     // Lighting
+    else if (renderMode == 7) fragmentColor = kS;                           // Fresnel
+    else if (renderMode == 8) fragmentColor = irradiance;                   // Irradiance
+    else if (renderMode == 9) fragmentColor = reflection;                   // Reflection
 
     // Apply gamma correction
     fragmentColor = fragmentColor/(fragmentColor + vec3(1.0));
     fragmentColor = pow(fragmentColor, vec3(1.0/2.2));
 
+    // Calculate final fragment color
     finalColor = vec4(fragmentColor, 1.0);
 }
