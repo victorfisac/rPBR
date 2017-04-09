@@ -3,7 +3,7 @@
 // Input vertex attributes (from vertex shader)
 in vec3 fragPos;
 
-// Material parameters
+// Environment parameters
 uniform samplerCube environmentMap;
 
 // Output fragment color
@@ -13,6 +13,7 @@ void main()
 {
     vec3 color = texture(environmentMap, fragPos).rgb;
 
+    // Apply gamma correction
     color = color/(color + vec3(1.0));
     color = pow(color, vec3(1.0/2.2));
 

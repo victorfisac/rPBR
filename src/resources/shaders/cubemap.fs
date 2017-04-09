@@ -3,9 +3,10 @@
 // Input vertex attributes (from vertex shader)
 in vec3 fragPos;
 
-// Material parameters
+// Environment parameters
 uniform sampler2D equirectangularMap;
 
+// Other parameters
 const vec2 invAtan = vec2(0.1591, 0.3183);
 
 // Output fragment color
@@ -23,7 +24,8 @@ void main()
 {
     // Normalize local position 
     vec2 uv = SampleSphericalMap(normalize(fragPos));
-    
+
+    // Fetch color from texture map
     vec3 color = texture(equirectangularMap, uv).rgb;
     finalColor = vec4(color, 1.0);
 }
