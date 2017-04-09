@@ -25,7 +25,7 @@
 //----------------------------------------------------------------------------------
 // Defines
 //----------------------------------------------------------------------------------
-#define         PATH_MODEL                  "resources/models/blaster.obj"
+#define         PATH_MODEL                  "resources/models/cerberus.obj"
 #define         PATH_PBR_VS                 "resources/shaders/pbr.vs"
 #define         PATH_PBR_FS                 "resources/shaders/pbr.fs"
 #define         PATH_CUBE_VS                "resources/shaders/cubemap.vs"
@@ -37,11 +37,11 @@
 #define         PATH_BRDF_VS                "resources/shaders/brdf.vs"
 #define         PATH_BRDF_FS                "resources/shaders/brdf.fs"
 #define         PATH_HDR                    "resources/textures/hdr/hdr_apartament.hdr"
-#define         PATH_TEXTURES_ALBEDO        "resources/textures/blaster/blaster_albedo.png"
-#define         PATH_TEXTURES_NORMALS       "resources/textures/blaster/blaster_normals.png"
-#define         PATH_TEXTURES_METALLIC      "resources/textures/blaster/blaster_metallic.png"
-#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/blaster/blaster_roughness.png"
-#define         PATH_TEXTURES_AO            "resources/textures/blaster/blaster_ao.png"
+#define         PATH_TEXTURES_ALBEDO        "resources/textures/cerberus/cerberus_albedo.png"
+#define         PATH_TEXTURES_NORMALS       "resources/textures/cerberus/cerberus_normals.png"
+#define         PATH_TEXTURES_METALLIC      "resources/textures/cerberus/cerberus_metallic.png"
+#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/cerberus/cerberus_roughness.png"
+#define         PATH_TEXTURES_AO            "resources/textures/cerberus/cerberus_ao.png"
 
 #define         MAX_LIGHTS                  4               // Max lights supported by shader
 #define         MAX_ROWS                    1               // Rows to render models
