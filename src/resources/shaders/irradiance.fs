@@ -36,12 +36,15 @@ void main()
             // tangent space to world
             vec3 sampleVec = tangentSample.x*right + tangentSample.y*up + tangentSample.z*normal; 
 
+            // Fetch color from environment cubemap
             irradiance += texture(environmentMap, sampleVec).rgb*cos(theta)*sin(theta);
             nrSamples++;
         }
     }
 
+    // Calculate irradiance average value from samples
     irradiance = PI*irradiance*(1.0/float(nrSamples));
 
+    // Calculate final fragment color
     finalColor = vec4(irradiance, 1.0);
 }

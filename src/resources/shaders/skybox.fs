@@ -11,11 +11,13 @@ out vec4 finalColor;
 
 void main()
 {
+    // Fetch color from texture map
     vec3 color = texture(environmentMap, fragPos).rgb;
 
     // Apply gamma correction
     color = color/(color + vec3(1.0));
     color = pow(color, vec3(1.0/2.2));
 
+    // Calculate final fragment color
     finalColor = vec4(color, 1.0);
 }
