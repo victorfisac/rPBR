@@ -12,6 +12,7 @@
 #include <stdlib.h>                         // Required for: exit(), free()
 #include <stdio.h>                          // Required for: printf()
 #include <string.h>                         // Required for: strcpy()
+#include <math.h>                           // Required for: pow()
 
 #include "raylib.h"                         // Required for raylib framework
 #include "pbrmath.h"                        // Required for matrix and vectors math
@@ -24,22 +25,23 @@
 //----------------------------------------------------------------------------------
 // Defines
 //----------------------------------------------------------------------------------
-#define         PATH_MODEL                  "resources/models/dwarf.obj"
+#define         PATH_MODEL                  "resources/models/blaster.obj"
 #define         PATH_PBR_VS                 "resources/shaders/pbr.vs"
 #define         PATH_PBR_FS                 "resources/shaders/pbr.fs"
 #define         PATH_CUBE_VS                "resources/shaders/cubemap.vs"
 #define         PATH_CUBE_FS                "resources/shaders/cubemap.fs"
 #define         PATH_SKYBOX_VS              "resources/shaders/skybox.vs"
 #define         PATH_SKYBOX_FS              "resources/shaders/skybox.fs"
-#define         PATH_IRRADIANCE_VS          "resources/shaders/irradiance.vs"
 #define         PATH_IRRADIANCE_FS          "resources/shaders/irradiance.fs"
+#define         PATH_PREFILTER_FS           "resources/shaders/prefilter.fs"
+#define         PATH_BRDF_VS                "resources/shaders/brdf.vs"
+#define         PATH_BRDF_FS                "resources/shaders/brdf.fs"
 #define         PATH_HDR                    "resources/textures/hdr/hdr_apartament.hdr"
-#define         PATH_HDR_BLUR               "resources/textures/hdr/hdr_apartament_blur.hdr"
-#define         PATH_TEXTURES_ALBEDO        "resources/textures/dwarf/dwarf_albedo.png"
-#define         PATH_TEXTURES_NORMALS       "resources/textures/dwarf/dwarf_normals.png"
-#define         PATH_TEXTURES_METALLIC      "resources/textures/dwarf/dwarf_metallic.png"
-#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/dwarf/dwarf_roughness.png"
-#define         PATH_TEXTURES_AO            "resources/textures/dwarf/dwarf_ao.png"
+#define         PATH_TEXTURES_ALBEDO        "resources/textures/blaster/blaster_albedo.png"
+#define         PATH_TEXTURES_NORMALS       "resources/textures/blaster/blaster_normals.png"
+#define         PATH_TEXTURES_METALLIC      "resources/textures/blaster/blaster_metallic.png"
+#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/blaster/blaster_roughness.png"
+#define         PATH_TEXTURES_AO            "resources/textures/blaster/blaster_ao.png"
 
 #define         MAX_LIGHTS                  4               // Max lights supported by shader
 #define         MAX_ROWS                    1               // Rows to render models
@@ -49,6 +51,8 @@
 #define         ROTATION_SPEED              0.25f           // Models rotation speed
 #define         CUBEMAP_SIZE                1024            // Cubemap texture size
 #define         IRRADIANCE_SIZE             32              // Irradiance map from cubemap texture size
+#define         PREFILTERED_SIZE            128             // Prefiltered HDR environment map texture size
+#define         BRDF_SIZE                   512             // BRDF LUT texture map size
 
 //----------------------------------------------------------------------------------
 // Structs and enums
@@ -69,11 +73,12 @@ typedef enum {
 //----------------------------------------------------------------------------------
 // Function Declarations
 //----------------------------------------------------------------------------------
-unsigned int LoadHighDynamicRange(const char *filename);        // Loads a high dynamic range (HDR) format file as linear float and converts it to a texture returning its id
-void UnloadHighDynamicRange(unsigned int id);                   // Unloads a high dynamic range (HDR) created texture
+unsigned int LoadDynamicTexture(const char *filename);          // Loads a high dynamic range (HDR) format file as linear float and converts it to a texture returning its id
+void UnloadDynamicTexture(unsigned int id);                     // Unloads a dynamic created texture
 void CaptureScreenshot(int width, int height);                  // Take screenshot from screen and save it
 unsigned char *ReadScreenPixels(int width, int height);         // Read screen pixel data (color buffer)
-void RenderCube(void);                                          // RenderCube() Renders a 1x1 3D cube in NDC
+void RenderCube(void);                                          // Renders a 1x1 3D cube in NDC
+void RenderQuad(void);                                          // Renders a 1x1 XY quad in NDC
 
 //----------------------------------------------------------------------------------
 // Main program
@@ -107,6 +112,8 @@ int main()
     Shader cubeShader = LoadShader(PATH_CUBE_VS, PATH_CUBE_FS);
     Shader skyShader = LoadShader(PATH_SKYBOX_VS, PATH_SKYBOX_FS);
     Shader irradianceShader = LoadShader(PATH_SKYBOX_VS, PATH_IRRADIANCE_FS);
+    Shader prefilterShader = LoadShader(PATH_SKYBOX_VS, PATH_PREFILTER_FS);
+    Shader brdfShader = LoadShader(PATH_BRDF_VS, PATH_BRDF_FS);
     Texture2D albedoTex = LoadTexture(PATH_TEXTURES_ALBEDO);
     Texture2D normalsTex = LoadTexture(PATH_TEXTURES_NORMALS);
     Texture2D metallicTex = LoadTexture(PATH_TEXTURES_METALLIC);
@@ -159,6 +166,12 @@ int main()
     int irradianceProjectionLoc = GetShaderLocation(irradianceShader, "projection");
     int irradianceViewLoc = GetShaderLocation(irradianceShader, "view");
 
+    // Get prefilter shader locations
+    int prefilterMapLoc = GetShaderLocation(prefilterShader, "environmentMap");
+    int prefilterProjectionLoc = GetShaderLocation(prefilterShader, "projection");
+    int prefilterViewLoc = GetShaderLocation(prefilterShader, "view");
+    int prefilterRoughnessLoc = GetShaderLocation(prefilterShader, "roughness");
+
     // Set up PBR shader constant values
     glUseProgram(model.material.shader.id);
     glUniform1i(GetShaderLocation(model.material.shader, "albedo.useSampler"), 1);
@@ -168,8 +181,8 @@ int main()
     glUniform1i(GetShaderLocation(model.material.shader, "ao.useSampler"), 1);
 
     glUniform1i(GetShaderLocation(model.material.shader, "irradianceMap"), 0);
-    glUniform1i(GetShaderLocation(model.material.shader, "reflectionMap"), 1);
-    glUniform1i(GetShaderLocation(model.material.shader, "blurredMap"), 2);
+    glUniform1i(GetShaderLocation(model.material.shader, "prefilterMap"), 1);
+    glUniform1i(GetShaderLocation(model.material.shader, "brdfLUT"), 2);
     glUniform1i(GetShaderLocation(model.material.shader, "albedo.sampler"), 3);
     glUniform1i(GetShaderLocation(model.material.shader, "normals.sampler"), 4);
     glUniform1i(GetShaderLocation(model.material.shader, "metallic.sampler"), 5);
@@ -191,6 +204,10 @@ int main()
     // Set up irradiance shader constant values
     glUseProgram(irradianceShader.id);
     glUniform1i(irradianceMapLoc, 0);
+    
+    // Set up prefilter shader constant values
+    glUseProgram(prefilterShader.id);
+    glUniform1i(prefilterMapLoc, 0);
 
     // Set up skybox shader constant values
     glUseProgram(skyShader.id);
@@ -200,9 +217,10 @@ int main()
     SetTargetFPS(60);
     glDepthFunc(GL_LEQUAL);
     glDisable(GL_CULL_FACE);
+    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
     // Load HDR environment
-    unsigned int skyTex = LoadHighDynamicRange(PATH_HDR);
+    unsigned int skyTex = LoadDynamicTexture(PATH_HDR);
 
     // Set up framebuffer for skybox
     unsigned int captureFBO, captureRBO;
@@ -254,6 +272,7 @@ int main()
         RenderCube();
     }
 
+    // Unbind framebuffer and textures
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // Create an irradiance cubemap, and re-scale capture FBO to irradiance scale
@@ -290,48 +309,75 @@ int main()
 
     // Unbind framebuffer and textures
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    
-    // Load blurred HDR environment
-    unsigned int skyTexBlur = LoadHighDynamicRange(PATH_HDR_BLUR);
 
-    // Set up framebuffer for skybox
-    unsigned int captureFBOBlur, captureRBOBlur;
-    glGenFramebuffers(1, &captureFBOBlur);
-    glGenRenderbuffers(1, &captureRBOBlur);
-    glBindFramebuffer(GL_FRAMEBUFFER, captureFBOBlur);
-    glBindRenderbuffer(GL_RENDERBUFFER, captureRBOBlur);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 1024, 1024);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, captureRBOBlur);
-
-    // Set up cubemap to render and attach to framebuffer
-    // NOTE: faces are stored with 16 bit floating point values
-    unsigned int cubeMapBlur;
-    glGenTextures(1, &cubeMapBlur);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMapBlur);
-    for (unsigned int i = 0; i < 6; i++) glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 1024, 1024, 0, GL_RGB, GL_FLOAT, NULL);
+    // Create a prefiltered HDR environment map
+    unsigned int prefilterMap;
+    glGenTextures(1, &prefilterMap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, prefilterMap);
+    for (unsigned int i = 0; i < 6; i++) glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, PREFILTERED_SIZE, PREFILTERED_SIZE, 0, GL_RGB, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); 
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    // Convert HDR equirectangular environment map to cubemap equivalent
-    glUseProgram(cubeShader.id);
+    // Generate mipmaps for the prefiltered HDR texture
+    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+    
+    // Prefilter HDR and store data into mipmap levels
+    glUseProgram(prefilterShader.id);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, skyTexBlur);
-    SetShaderValueMatrix(cubeShader, cubeProjectionLoc, captureProjection);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
+    SetShaderValueMatrix(prefilterShader, prefilterProjectionLoc, captureProjection);
 
-    glViewport(0, 0, 1024, 1024);     // Note: don't forget to configure the viewport to the capture dimensions
-    glBindFramebuffer(GL_FRAMEBUFFER, captureFBOBlur);
-
-    for (unsigned int i = 0; i < 6; i++)
+    glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+    unsigned int maxMipLevels = 5;
+    for (unsigned int mip = 0; mip < maxMipLevels; mip++)
     {
-        SetShaderValueMatrix(cubeShader, cubeViewLoc, captureViews[i]);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, cubeMapBlur, 0);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        RenderCube();
+        // Resize framebuffer according to mip-level size.
+        unsigned int mipWidth  = PREFILTERED_SIZE*pow(0.5, mip);
+        unsigned int mipHeight = PREFILTERED_SIZE*pow(0.5, mip);
+        glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
+        glViewport(0, 0, mipWidth, mipHeight);
+
+        float roughness = (float)mip/(float)(maxMipLevels - 1);
+        glUniform1f(prefilterRoughnessLoc, roughness);
+        for (unsigned int i = 0; i < 6; ++i)
+        {
+            SetShaderValueMatrix(prefilterShader, prefilterViewLoc, captureViews[i]);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, prefilterMap, mip);
+
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            RenderCube();
+        }
     }
 
+    // Unbind framebuffer and textures
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);   
+    
+    // Generate BRDF convolution texture
+    unsigned int brdfLut;
+    glGenTextures(1, &brdfLut);
+    glBindTexture(GL_TEXTURE_2D, brdfLut);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, BRDF_SIZE, BRDF_SIZE, 0, GL_RG, GL_FLOAT, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Render BRDF LUT into a quad using default FBO
+    glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+    glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, BRDF_SIZE, BRDF_SIZE);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, brdfLut, 0);
+
+    glViewport(0, 0, BRDF_SIZE, BRDF_SIZE);
+    glUseProgram(brdfShader.id);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    RenderQuad();
+
+    // Unbind framebuffer and textures
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // Then before rendering, configure the viewport to the actual screen dimensions
@@ -340,6 +386,7 @@ int main()
     SetShaderValueMatrix(cubeShader, cubeProjectionLoc, defaultProjection);
     SetShaderValueMatrix(skyShader, skyProjectionLoc, defaultProjection);
     SetShaderValueMatrix(irradianceShader, irradianceProjectionLoc, defaultProjection);
+    SetShaderValueMatrix(prefilterShader, prefilterProjectionLoc, defaultProjection);
 
     // Reset viewport dimensions to default
     glViewport(0, 0, screenWidth, screenHeight);
@@ -446,13 +493,13 @@ int main()
                         glActiveTexture(GL_TEXTURE0);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMap);
 
-                        // Enable and bind reflection map
+                        // Enable and bind prefiltered reflection map
                         glActiveTexture(GL_TEXTURE1);
-                        glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
+                        glBindTexture(GL_TEXTURE_CUBE_MAP, prefilterMap);
 
-                        // Enable and bind blurred reflection map
+                        // Enable and bind BRDF LUT map
                         glActiveTexture(GL_TEXTURE2);
-                        glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMapBlur);
+                        glBindTexture(GL_TEXTURE_2D, brdfLut);
 
                         // Enable and bind albedo map
                         glActiveTexture(GL_TEXTURE3);
@@ -481,13 +528,13 @@ int main()
                         glActiveTexture(GL_TEXTURE0);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 
-                        // Disable and unbind reflection map
+                        // Disable and unbind prefiltered reflection map
                         glActiveTexture(GL_TEXTURE1);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 
-                        // Disable and unbind blurred reflection map
+                        // Disable and unbind BRDF LUT map
                         glActiveTexture(GL_TEXTURE2);
-                        glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+                        glBindTexture(GL_TEXTURE_2D, 0);
 
                         // Disable and unbind albedo map
                         glActiveTexture(GL_TEXTURE3);
@@ -517,7 +564,6 @@ int main()
                     DrawSphere(lightPosition[i], 0.025f, YELLOW);
                     DrawSphereWires(lightPosition[i], 0.025f, 16, 16, ORANGE);
                 }
-
 
                 // Calculate view matrix for custom shaders
                 Matrix view = MatrixLookAt(camera.position, camera.target, camera.up);
@@ -550,11 +596,13 @@ int main()
     UnloadShader(cubeShader);
     UnloadShader(skyShader);
     UnloadShader(irradianceShader);
-    UnloadHighDynamicRange(skyTex);
-    UnloadHighDynamicRange(skyTexBlur);
-    UnloadHighDynamicRange(cubeMap);
-    UnloadHighDynamicRange(cubeMapBlur);
-    UnloadHighDynamicRange(irradianceMap);
+    UnloadShader(prefilterShader);
+    UnloadShader(brdfShader);
+    UnloadDynamicTexture(skyTex);
+    UnloadDynamicTexture(cubeMap);
+    UnloadDynamicTexture(irradianceMap);
+    UnloadDynamicTexture(prefilterMap);
+    UnloadDynamicTexture(brdfLut);
 
     // Close window and OpenGL context
     CloseWindow();
@@ -567,7 +615,7 @@ int main()
 // Function Definitions
 //----------------------------------------------------------------------------------
 // Loads a high dynamic range (HDR) format file as linear float and converts it to a texture returning its id
-unsigned int LoadHighDynamicRange(const char *filename)
+unsigned int LoadDynamicTexture(const char *filename)
 {
     unsigned int hdrId;
 
@@ -592,8 +640,8 @@ unsigned int LoadHighDynamicRange(const char *filename)
     return hdrId;
 }
 
-// Unloads a high dynamic range (HDR) created texture
-void UnloadHighDynamicRange(unsigned int id)
+// Unloads a dynamic created texture
+void UnloadDynamicTexture(unsigned int id)
 {
     if (id != 0) glDeleteTextures(1, &id);
 }
@@ -689,6 +737,7 @@ void RenderCube(void)
             -1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f    // bottom-left        
         };
 
+        // Set up cube VAO
         glGenVertexArrays(1, &cubeVAO);
         glGenBuffers(1, &cubeVBO);
 
@@ -708,8 +757,45 @@ void RenderCube(void)
         glBindVertexArray(0);
     }
 
-    // Render Cube
+    // Render cube
     glBindVertexArray(cubeVAO);
     glDrawArrays(GL_TRIANGLES, 0, 36);
+    glBindVertexArray(0);
+}
+
+// Renders a 1x1 XY quad in NDC
+GLuint quadVAO = 0;
+GLuint quadVBO;
+void RenderQuad(void)
+{
+    if (quadVAO == 0) 
+    {
+        GLfloat quadVertices[] = {
+            // Positions        // Texture Coords
+            -1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+            -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+            1.0f, 1.0f, 0.0f, 1.0f, 1.0f,
+            1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+        };
+
+        // Set up plane VAO
+        glGenVertexArrays(1, &quadVAO);
+        glGenBuffers(1, &quadVBO);
+        glBindVertexArray(quadVAO);
+
+        // Fill buffer
+        glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+
+        // Link vertex attributes
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5*sizeof(GLfloat), (GLvoid*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5*sizeof(GLfloat), (GLvoid*)(3*sizeof(GLfloat)));
+    }
+
+    // Render quad
+    glBindVertexArray(quadVAO);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     glBindVertexArray(0);
 }

@@ -1,5 +1,6 @@
 #version 330
-#define     MAX_LIGHTS      4
+#define     MAX_LIGHTS              4
+#define     MAX_REFLECTION_LOD      4.0
 
 struct MaterialProperty {
     vec3 color;
@@ -28,8 +29,8 @@ uniform vec3 lightColor[MAX_LIGHTS];
 
 // Environment parameters
 uniform samplerCube irradianceMap;
-uniform samplerCube reflectionMap;
-uniform samplerCube blurredMap;
+uniform samplerCube prefilterMap;
+uniform sampler2D brdfLUT;
 
 // Other parameters
 uniform int renderMode;
@@ -39,24 +40,12 @@ const float PI = 3.14159265359;
 // Output fragment color
 out vec4 finalColor;
 
-vec3 blend(vec3 bg, vec3 fg);
 vec3 ComputeMaterialProperty(MaterialProperty property);
 float DistributionGGX(vec3 N, vec3 H, float roughness);
 float GeometrySchlickGGX(float NdotV, float roughness);
 float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 vec3 fresnelSchlick(float cosTheta, vec3 F0);
 vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
-
-vec3 blend(vec3 bg, vec3 fg)
-{
-    vec3 result = vec3(0.0);
-    
-    result.x = ((bg.x < 0.5) ? (2.0*bg.x*fg.x) : (1.0 - 2.0*(1.0 - bg.x)*(1.0 - fg.x)));
-    result.y = ((bg.y < 0.5) ? (2.0*bg.y*fg.y) : (1.0 - 2.0*(1.0 - bg.y)*(1.0 - fg.y)));
-    result.z = ((bg.z < 0.5) ? (2.0*bg.z*fg.z) : (1.0 - 2.0*(1.0 - bg.z)*(1.0 - fg.z)));
-    
-    return result;
-}
 
 vec3 ComputeMaterialProperty(MaterialProperty property)
 {
@@ -110,6 +99,12 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 
 void main()
 {
+    // Fetch material values from texture sampler or color attributes
+    vec3 color = pow(ComputeMaterialProperty(albedo), vec3(2.2));
+    vec3 metal = ComputeMaterialProperty(metallic);
+    vec3 rough = ComputeMaterialProperty(roughness);
+    vec3 occlusion = ComputeMaterialProperty(ao);
+
     // Calculate TBN and RM matrices
     mat3 TBN = transpose(mat3(fragTangent, fragBinormal, fragNormal));
     mat3 RM = mat3(fragModelMatrix[0].xyz, fragModelMatrix[1].xyz, fragModelMatrix[2].xyz);
@@ -131,15 +126,9 @@ void main()
         refl = normalize(reflect(normalize(fragPos - viewPos), normalize(RM*(normal*TBN))));
     }
 
-    // Fetch material values from texture sampler or color attributes
-    vec3 color = ComputeMaterialProperty(albedo);
-    vec3 metal = ComputeMaterialProperty(metallic);
-    vec3 rough = ComputeMaterialProperty(roughness);
-    vec3 occlusion = ComputeMaterialProperty(ao);
-
-    // Calculate diffuse color from metalness value
-    vec3 f0 = vec3(0.04);
-    f0 = mix(f0, color, metal.r);
+    // Calculate reflectance at normal incidence
+    vec3 F0 = vec3(0.04);
+    F0 = mix(F0, color, metal.r);
 
     // Calculate lighting for all lights
     vec3 Lo = vec3(0.0);
@@ -156,45 +145,51 @@ void main()
         float attenuation = 1.0/(distance*distance);
         vec3 radiance = lightColor[i]*attenuation;
 
-        // Cook-torrance brdf
+        // Cook-torrance BRDF
         float NDF = DistributionGGX(normal, high, rough.r);
-        float G = GeometrySmith(normal, view, light, roughness.color.r);
-        vec3 F = fresnelSchlickRoughness(max(dot(high, view), 0.0), f0, rough.r);
-
-        vec3 kS = F;
-        vec3 kD = vec3(1.0) - kS;
-        kD *= 1.0 - metal.r;
-
+        float G = GeometrySmith(normal, view, light, rough.r);
+        vec3 F = fresnelSchlick(max(dot(high, view), 0.0), F0);
         vec3 nominator = NDF*G*F;
         float denominator = 4*max(dot(normal, view), 0.0)*max(dot(normal, light), 0.0) + 0.001;
         vec3 brdf = nominator/denominator;
 
-        // Add to outgoing radiance Lo
+        // Store to kS the fresnel value and calculate energy conservation
+        vec3 kS = F;
+        vec3 kD = vec3(1.0) - kS;
+
+        // Multiply kD by the inverse metalness such that only non-metals have diffuse lighting
+        kD *= 1.0 - metal.r;
+
+        // Scale light by dot product between normal and light direction
         float NdotL = max(dot(normal, light), 0.0);
+
+        // Add to outgoing radiance Lo
+        // Note: BRDF is already multiplied by the Fresnel so it doesn't need to be multiplied again
         Lo += (kD*color/PI + brdf)*radiance*NdotL;
         lightDot += radiance*NdotL + brdf;
     }
 
-    // Calculate specular fresnel and energy conservation
-    vec3 kS = fresnelSchlickRoughness(max(dot(normal, view), 0.0), f0, rough.r);
+    // Calculate ambient lighting using IBL
+    vec3 F = fresnelSchlickRoughness(max(dot(normal, view), 0.0), F0, rough.r);
+    vec3 kS = F;
     vec3 kD = 1.0 - kS;
+    kD *= 1.0 - metal.r;
 
     // Calculate indirect diffuse
     vec3 irradiance = texture(irradianceMap, fragNormal).rgb;
+    vec3 diffuse = color*irradiance;
 
-    // Calculate indirect specular and reflection
-    vec3 fullReflection = texture(reflectionMap, refl).rgb;
-    vec3 blurReflection = texture(blurredMap, refl).rgb;
-    vec3 reflection = mix(blurReflection, fullReflection, rough.r)*metal.r;
+    // Sample both the prefilter map and the BRDF lut and combine them together as per the Split-Sum approximation
+    vec3 prefilterColor = textureLod(prefilterMap, refl, rough.r*MAX_REFLECTION_LOD).rgb;
+    vec2 brdf = texture(brdfLUT, vec2(max(dot(normal, view), 0.0), rough.r)).rg;
+    vec3 reflection = prefilterColor*(F*brdf.x + brdf.y);
 
     // Calculate final lighting
-    vec3 diffuse = color*irradiance;
-    vec3 ambient = kD*diffuse + kS*reflection;
+    vec3 ambient = (kD*diffuse + reflection)*occlusion;
 
-    // Calculate final fragment color
-    vec3 fragmentColor = vec3(0.0);
-    if (renderMode == 0) fragmentColor = (ambient + Lo)*occlusion;          // Default
-    else if (renderMode == 1) fragmentColor = color;                        // Albedo
+    // Calculate fragment color based on render mode
+    vec3 fragmentColor = ambient + Lo;                                      // Physically Based Rendering
+    if (renderMode == 1) fragmentColor = color;                             // Albedo
     else if (renderMode == 2) fragmentColor = normalize(RM*(normal*TBN));   // Normals
     else if (renderMode == 3) fragmentColor = metal;                        // Metallic
     else if (renderMode == 4) fragmentColor = rough;                        // Roughness
@@ -204,8 +199,10 @@ void main()
     else if (renderMode == 8) fragmentColor = irradiance;                   // Irradiance
     else if (renderMode == 9) fragmentColor = reflection;                   // Reflection
 
-    // Apply gamma correction
+    // Apply HDR tonemapping
     fragmentColor = fragmentColor/(fragmentColor + vec3(1.0));
+
+    // Apply gamma correction
     fragmentColor = pow(fragmentColor, vec3(1.0/2.2));
 
     // Calculate final fragment color
