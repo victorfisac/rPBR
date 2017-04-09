@@ -46,7 +46,7 @@
 #define         MAX_LIGHTS                  4               // Max lights supported by shader
 #define         MAX_ROWS                    1               // Rows to render models
 #define         MAX_COLUMNS                 1               // Columns to render models
-#define         MODEL_SCALE                 1.5f            // Model scale transformation for rendering
+#define         MODEL_SCALE                 1.0f            // Model scale transformation for rendering
 #define         MODEL_OFFSET                0.45f           // Distance between models for rendering
 #define         ROTATION_SPEED              0.25f           // Models rotation speed
 #define         CUBEMAP_SIZE                1024            // Cubemap texture size
@@ -98,7 +98,7 @@ int main()
     float rotationAngle = 0.0f;
     Vector3 rotationAxis = { 0.0f, 1.0f, 0.0f };
     Vector3 lightPosition[MAX_LIGHTS] = { (Vector3){ -1.0f, 1.0f, -1.0f }, (Vector3){ 1.0, 1.0f, -1.0f }, (Vector3){ 1.0f, 1.0f, 1.0f }, (Vector3){ -1.0f, 1.0f, 1.0f } };
-    Camera camera = {{ 2.75f, 3.55f, 2.75f }, { 1.0f, 2.05f, 1.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f };
+    Camera camera = {{ 2.75f, 2.55f, 2.75f }, { 1.0f, 1.05f, 1.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f };
     SetCameraMode(camera, CAMERA_FREE);
     int selectedLight = 0;
     RenderMode mode = DEFAULT;
