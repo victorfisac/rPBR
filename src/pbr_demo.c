@@ -25,7 +25,7 @@
 //----------------------------------------------------------------------------------
 // Defines
 //----------------------------------------------------------------------------------
-#define         PATH_MODEL                  "resources/models/sphere.obj"
+#define         PATH_MODEL                  "resources/models/cerberus.obj"
 #define         PATH_PBR_VS                 "resources/shaders/pbr.vs"
 #define         PATH_PBR_FS                 "resources/shaders/pbr.fs"
 #define         PATH_CUBE_VS                "resources/shaders/cubemap.vs"
@@ -36,24 +36,25 @@
 #define         PATH_PREFILTER_FS           "resources/shaders/prefilter.fs"
 #define         PATH_BRDF_VS                "resources/shaders/brdf.vs"
 #define         PATH_BRDF_FS                "resources/shaders/brdf.fs"
-#define         PATH_HDR                    "resources/textures/hdr/hdr_apartament.hdr"
-#define         PATH_TEXTURES_ALBEDO        "resources/textures/gold/gold_albedo.png"
-#define         PATH_TEXTURES_NORMALS       "resources/textures/gold/gold_normals.png"
-#define         PATH_TEXTURES_METALLIC      "resources/textures/gold/gold_metallic.png"
-#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/gold/gold_roughness.png"
-#define         PATH_TEXTURES_AO            "resources/textures/gold/gold_ao.png"
-#define         PATH_TEXTURES_HEIGHT        "resources/textures/gold/gold_height.png"
+#define         PATH_HDR                    "resources/textures/hdr/hdr_road.hdr"
+#define         PATH_TEXTURES_ALBEDO        "resources/textures/cerberus/cerberus_albedo.png"
+#define         PATH_TEXTURES_NORMALS       "resources/textures/cerberus/cerberus_normals.png"
+#define         PATH_TEXTURES_METALLIC      "resources/textures/cerberus/cerberus_metallic.png"
+#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/cerberus/cerberus_roughness.png"
+#define         PATH_TEXTURES_AO            "resources/textures/cerberus/cerberus_ao.png"
+#define         PATH_TEXTURES_HEIGHT        "resources/textures/cerberus/cerberus_height.png"
 
 #define         MAX_LIGHTS                  4               // Max lights supported by shader
 #define         MAX_ROWS                    1               // Rows to render models
 #define         MAX_COLUMNS                 1               // Columns to render models
-#define         MODEL_SCALE                 1.0f            // Model scale transformation for rendering
+#define         MODEL_SCALE                 1.5f            // Model scale transformation for rendering
 #define         MODEL_OFFSET                0.45f           // Distance between models for rendering
 #define         ROTATION_SPEED              0.0f            // Models rotation speed
 #define         CUBEMAP_SIZE                1024            // Cubemap texture size
 #define         IRRADIANCE_SIZE             32              // Irradiance map from cubemap texture size
-#define         PREFILTERED_SIZE            128             // Prefiltered HDR environment map texture size
+#define         PREFILTERED_SIZE            256             // Prefiltered HDR environment map texture size
 #define         BRDF_SIZE                   512             // BRDF LUT texture map size
+#define         SUPPORT_PARALLAX            0               // Support parallax mapping enabled state
 
 //----------------------------------------------------------------------------------
 // Structs and enums
@@ -93,7 +94,7 @@ int main()
 
     // Enable Multi Sampling Anti Aliasing 4x (if available)
     SetConfigFlags(FLAG_MSAA_4X_HINT);
-    InitWindow(screenWidth, screenHeight, "pbraylib - Physically Based Rendering");
+    InitWindow(screenWidth, screenHeight, "rPBR - Physically Based Rendering");
 
     // Define the camera to look into our 3d world, its mode and model drawing position
     float rotationAngle = 0.0f;
@@ -101,11 +102,19 @@ int main()
     Vector3 lightPosition[MAX_LIGHTS] = { (Vector3){ -1.0f, 1.0f, -1.0f }, (Vector3){ 1.0, 1.0f, -1.0f }, (Vector3){ 1.0f, 1.0f, 1.0f }, (Vector3){ -1.0f, 1.0f, 1.0f } };
     Camera camera = {{ 2.75f, 2.55f, 2.75f }, { 1.0f, 1.05f, 1.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f };
     SetCameraMode(camera, CAMERA_FREE);
+
+    // Define demo program main variables
     int selectedLight = 0;
     RenderMode mode = DEFAULT;
     bool drawGrid = true;
     bool drawLights = true;
     bool drawSkybox = true;
+    bool useAlbedoMap = true;
+    bool useNormalMap = true;
+    bool useMetallicMap = true;
+    bool useRoughnessMap = true;
+    bool useOcclusionMap = true;
+    bool useParallaxMap = false;
 
     // Load external resources
     Model model = LoadModel(PATH_MODEL);
@@ -177,13 +186,14 @@ int main()
 
     // Set up PBR shader constant values
     glUseProgram(model.material.shader.id);
-    glUniform1i(GetShaderLocation(model.material.shader, "albedo.useSampler"), 1);
-    glUniform1i(GetShaderLocation(model.material.shader, "normals.useSampler"), 1);
-    glUniform1i(GetShaderLocation(model.material.shader, "metallic.useSampler"), 1);
-    glUniform1i(GetShaderLocation(model.material.shader, "roughness.useSampler"), 1);
-    glUniform1i(GetShaderLocation(model.material.shader, "ao.useSampler"), 1);
-    glUniform1i(GetShaderLocation(model.material.shader, "height.useSampler"), 0);
+    glUniform1i(GetShaderLocation(model.material.shader, "albedo.useSampler"), useAlbedoMap);
+    glUniform1i(GetShaderLocation(model.material.shader, "normals.useSampler"), useNormalMap);
+    glUniform1i(GetShaderLocation(model.material.shader, "metallic.useSampler"), useMetallicMap);
+    glUniform1i(GetShaderLocation(model.material.shader, "roughness.useSampler"), useRoughnessMap);
+    glUniform1i(GetShaderLocation(model.material.shader, "ao.useSampler"), useOcclusionMap);
+    glUniform1i(GetShaderLocation(model.material.shader, "height.useSampler"), useParallaxMap);
 
+    // Set up PBR shader texture units
     glUniform1i(GetShaderLocation(model.material.shader, "irradianceMap"), 0);
     glUniform1i(GetShaderLocation(model.material.shader, "prefilterMap"), 1);
     glUniform1i(GetShaderLocation(model.material.shader, "brdfLUT"), 2);
@@ -193,16 +203,21 @@ int main()
     glUniform1i(GetShaderLocation(model.material.shader, "roughness.sampler"), 6);
     glUniform1i(GetShaderLocation(model.material.shader, "ao.sampler"), 7);
     glUniform1i(GetShaderLocation(model.material.shader, "height.sampler"), 8);
+
+    // Set up material uniforms and other constant values
+    float lightColor[3] = { 1.0f, 1.0f, 1.0f };
+    for (unsigned int i = 0; i < MAX_LIGHTS; i++) SetShaderValue(model.material.shader, shaderLightColorLoc[i], lightColor, 3);
     float shaderAlbedo[3] = { 1.0f, 1.0f, 1.0f };
     SetShaderValue(model.material.shader, shaderAlbedoLoc, shaderAlbedo, 3);
     float shaderNormals[3] = { 0.5f, 0.5f, 1.0f };
     SetShaderValue(model.material.shader, shaderNormalsLoc, shaderNormals, 3);
     float shaderAo[3] = { 1.0f , 1.0f, 1.0f };
     SetShaderValue(model.material.shader, shaderAoLoc, shaderAo, 3);
-    float shaderHeight[3] = { 0.1f , 0.0f, 0.0f };
-    SetShaderValue(model.material.shader, shaderHeightLoc, shaderHeight, 3);
-    float lightColor[3] = { 1.0f, 1.0f, 1.0f };
-    for (unsigned int i = 0; i < MAX_LIGHTS; i++) SetShaderValue(model.material.shader, shaderLightColorLoc[i], lightColor, 3);
+    if (useParallaxMap)
+    {
+        float shaderHeight[3] = { 0.1f , 0.0f, 0.0f };
+        SetShaderValue(model.material.shader, shaderHeightLoc, shaderHeight, 3);
+    }
 
     // Set up cubemap shader constant values
     glUseProgram(cubeShader.id);
@@ -508,29 +523,47 @@ int main()
                         glActiveTexture(GL_TEXTURE2);
                         glBindTexture(GL_TEXTURE_2D, brdfLut);
 
-                        // Enable and bind albedo map
-                        glActiveTexture(GL_TEXTURE3);
-                        glBindTexture(GL_TEXTURE_2D, albedoTex.id);
+                        if (useAlbedoMap)
+                        {
+                            // Enable and bind albedo map
+                            glActiveTexture(GL_TEXTURE3);
+                            glBindTexture(GL_TEXTURE_2D, albedoTex.id);
+                        }
 
-                        // Enable and bind normals map
-                        glActiveTexture(GL_TEXTURE4);
-                        glBindTexture(GL_TEXTURE_2D, normalsTex.id);
+                        if (useNormalMap)
+                        {
+                            // Enable and bind normals map
+                            glActiveTexture(GL_TEXTURE4);
+                            glBindTexture(GL_TEXTURE_2D, normalsTex.id);
+                        }
 
-                        // Enable and bind metallic map
-                        glActiveTexture(GL_TEXTURE5);
-                        glBindTexture(GL_TEXTURE_2D, metallicTex.id);
+                        if (useMetallicMap)
+                        {
+                            // Enable and bind metallic map
+                            glActiveTexture(GL_TEXTURE5);
+                            glBindTexture(GL_TEXTURE_2D, metallicTex.id);
+                        }
 
-                        // Enable and bind roughness map
-                        glActiveTexture(GL_TEXTURE6);
-                        glBindTexture(GL_TEXTURE_2D, roughnessTex.id);
+                        if (useRoughnessMap)
+                        {
+                            // Enable and bind roughness map
+                            glActiveTexture(GL_TEXTURE6);
+                            glBindTexture(GL_TEXTURE_2D, roughnessTex.id);
+                        }
 
-                        // Enable and bind ambient occlusion map
-                        glActiveTexture(GL_TEXTURE7);
-                        glBindTexture(GL_TEXTURE_2D, aoTex.id);
+                        if (useOcclusionMap)
+                        {
+                            // Enable and bind ambient occlusion map
+                            glActiveTexture(GL_TEXTURE7);
+                            glBindTexture(GL_TEXTURE_2D, aoTex.id);
+                        }
 
-                        // Enable and bind parallax height map
-                        glActiveTexture(GL_TEXTURE8);
-                        glBindTexture(GL_TEXTURE_2D, heightTex.id);
+                        if (useParallaxMap)
+                        {
+                            // Enable and bind parallax height map
+                            glActiveTexture(GL_TEXTURE8);
+                            glBindTexture(GL_TEXTURE_2D, heightTex.id);
+                        }
 
                         // Draw model using PBR shader and textures maps
                         DrawModelEx(model, (Vector3){ rows*MODEL_OFFSET, 0.0f, col*MODEL_OFFSET }, rotationAxis, rotationAngle, (Vector3){ MODEL_SCALE, MODEL_SCALE, MODEL_SCALE }, WHITE);
@@ -547,29 +580,47 @@ int main()
                         glActiveTexture(GL_TEXTURE2);
                         glBindTexture(GL_TEXTURE_2D, 0);
 
-                        // Disable and unbind albedo map
-                        glActiveTexture(GL_TEXTURE3);
-                        glBindTexture(GL_TEXTURE_2D, 0);
+                        if (useAlbedoMap)
+                        {
+                            // Disable and bind albedo map
+                            glActiveTexture(GL_TEXTURE3);
+                            glBindTexture(GL_TEXTURE_2D, 0);
+                        }
 
-                        // Disable and unbind normals map
-                        glActiveTexture(GL_TEXTURE4);
-                        glBindTexture(GL_TEXTURE_2D, 0);
+                        if (useNormalMap)
+                        {
+                            // Disable and bind normals map
+                            glActiveTexture(GL_TEXTURE4);
+                            glBindTexture(GL_TEXTURE_2D, 0);
+                        }
 
-                        // Disable and unbind metallic map
-                        glActiveTexture(GL_TEXTURE5);
-                        glBindTexture(GL_TEXTURE_2D, 0);
+                        if (useMetallicMap)
+                        {
+                            // Disable and bind metallic map
+                            glActiveTexture(GL_TEXTURE5);
+                            glBindTexture(GL_TEXTURE_2D, 0);
+                        }
 
-                        // Disable and unbind roughness map
-                        glActiveTexture(GL_TEXTURE6);
-                        glBindTexture(GL_TEXTURE_2D, 0);
+                        if (useRoughnessMap)
+                        {
+                            // Disable and bind roughness map
+                            glActiveTexture(GL_TEXTURE6);
+                            glBindTexture(GL_TEXTURE_2D, 0);
+                        }
 
-                        // Disable and unbind ambient occlusion map
-                        glActiveTexture(GL_TEXTURE7);
-                        glBindTexture(GL_TEXTURE_2D, 0);
+                        if (useOcclusionMap)
+                        {
+                            // Disable and bind ambient occlusion map
+                            glActiveTexture(GL_TEXTURE7);
+                            glBindTexture(GL_TEXTURE_2D, 0);
+                        }
 
-                        // Disable and bind parallax height map
-                        glActiveTexture(GL_TEXTURE8);
-                        glBindTexture(GL_TEXTURE_2D, 0);
+                        if (useParallaxMap)
+                        {
+                            // Disable and bind parallax height map
+                            glActiveTexture(GL_TEXTURE8);
+                            glBindTexture(GL_TEXTURE_2D, 0);
+                        }
                     }
                 }
 
