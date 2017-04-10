@@ -16,6 +16,7 @@
 
 #include "raylib.h"                         // Required for raylib framework
 #include "pbrmath.h"                        // Required for matrix and vectors math
+#include "pbr3d.h"                          // Required for 3D drawing functions
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "external/stb_image.h"             // Required for image loading
@@ -36,7 +37,7 @@
 #define         PATH_PREFILTER_FS           "resources/shaders/prefilter.fs"
 #define         PATH_BRDF_VS                "resources/shaders/brdf.vs"
 #define         PATH_BRDF_FS                "resources/shaders/brdf.fs"
-#define         PATH_HDR                    "resources/textures/hdr/hdr_road.hdr"
+#define         PATH_HDR                    "resources/textures/hdr/hdr_pinetree.hdr"
 #define         PATH_TEXTURES_ALBEDO        "resources/textures/cerberus/cerberus_albedo.png"
 #define         PATH_TEXTURES_NORMALS       "resources/textures/cerberus/cerberus_normals.png"
 #define         PATH_TEXTURES_METALLIC      "resources/textures/cerberus/cerberus_metallic.png"
@@ -50,11 +51,11 @@
 #define         MODEL_SCALE                 1.5f            // Model scale transformation for rendering
 #define         MODEL_OFFSET                0.45f           // Distance between models for rendering
 #define         ROTATION_SPEED              0.0f            // Models rotation speed
+
 #define         CUBEMAP_SIZE                1024            // Cubemap texture size
 #define         IRRADIANCE_SIZE             32              // Irradiance map from cubemap texture size
 #define         PREFILTERED_SIZE            256             // Prefiltered HDR environment map texture size
 #define         BRDF_SIZE                   512             // BRDF LUT texture map size
-#define         SUPPORT_PARALLAX            0               // Support parallax mapping enabled state
 
 //----------------------------------------------------------------------------------
 // Structs and enums
@@ -72,15 +73,35 @@ typedef enum {
     REFLECTION
 } RenderMode;
 
+typedef enum {
+    LIGHT_DIRECTIONAL,
+    LIGHT_POINT
+} LightType;
+
+typedef struct {
+    bool enabled;
+    LightType type;
+    Vector3 position;
+    Vector3 target;
+    Color color;
+    int enabledLoc;
+    int typeLoc;
+    int posLoc;
+    int targetLoc;
+    int colorLoc;
+} Light;
+
 //----------------------------------------------------------------------------------
 // Function Declarations
 //----------------------------------------------------------------------------------
-unsigned int LoadDynamicTexture(const char *filename);          // Loads a high dynamic range (HDR) format file as linear float and converts it to a texture returning its id
-void UnloadDynamicTexture(unsigned int id);                     // Unloads a dynamic created texture
-void CaptureScreenshot(int width, int height);                  // Take screenshot from screen and save it
-unsigned char *ReadScreenPixels(int width, int height);         // Read screen pixel data (color buffer)
-void RenderCube(void);                                          // Renders a 1x1 3D cube in NDC
-void RenderQuad(void);                                          // Renders a 1x1 XY quad in NDC
+unsigned int LoadDynamicTexture(const char *filename);                  // Loads a high dynamic range (HDR) format file as linear float and converts it to a texture returning its id
+void UnloadDynamicTexture(unsigned int id);                             // Unloads a dynamic created texture
+void CaptureScreenshot(int width, int height);                          // Take screenshot from screen and save it
+
+Light CreateLight(int type, Vector3 pos, Vector3 targ, 
+                  Color color, Shader shader, int *lightCount);         // Defines a light type, position, target, color and get locations from shader
+void UpdateLightValues(Shader shader, Light light);                     // Send to shader light values
+void DrawLight(Light light);                                            // Draw a light gizmo based on light attributes
 
 //----------------------------------------------------------------------------------
 // Main program
@@ -91,19 +112,6 @@ int main()
     //------------------------------------------------------------------------------
     int screenWidth = 1280;
     int screenHeight = 720;
-
-    // Enable Multi Sampling Anti Aliasing 4x (if available)
-    SetConfigFlags(FLAG_MSAA_4X_HINT);
-    InitWindow(screenWidth, screenHeight, "rPBR - Physically Based Rendering");
-
-    // Define the camera to look into our 3d world, its mode and model drawing position
-    float rotationAngle = 0.0f;
-    Vector3 rotationAxis = { 0.0f, 1.0f, 0.0f };
-    Vector3 lightPosition[MAX_LIGHTS] = { (Vector3){ -1.0f, 1.0f, -1.0f }, (Vector3){ 1.0, 1.0f, -1.0f }, (Vector3){ 1.0f, 1.0f, 1.0f }, (Vector3){ -1.0f, 1.0f, 1.0f } };
-    Camera camera = {{ 2.75f, 2.55f, 2.75f }, { 1.0f, 1.05f, 1.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f };
-    SetCameraMode(camera, CAMERA_FREE);
-
-    // Define demo program main variables
     int selectedLight = 0;
     RenderMode mode = DEFAULT;
     bool drawGrid = true;
@@ -116,6 +124,16 @@ int main()
     bool useOcclusionMap = true;
     bool useParallaxMap = false;
 
+    // Define the camera to look into our 3d world, its mode and model drawing position
+    float rotationAngle = 0.0f;
+    Vector3 rotationAxis = { 0.0f, 1.0f, 0.0f };
+    Camera camera = {{ 2.75f, 2.55f, 2.75f }, { 1.0f, 1.05f, 1.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f };
+    SetCameraMode(camera, CAMERA_FREE);
+
+    // Enable Multi Sampling Anti Aliasing 4x (if available)
+    SetConfigFlags(FLAG_MSAA_4X_HINT);
+    InitWindow(screenWidth, screenHeight, "rPBR - Physically Based Rendering");
+
     // Load external resources
     Model model = LoadModel(PATH_MODEL);
     Shader pbrShader = LoadShader(PATH_PBR_VS, PATH_PBR_FS);
@@ -124,15 +142,15 @@ int main()
     Shader irradianceShader = LoadShader(PATH_SKYBOX_VS, PATH_IRRADIANCE_FS);
     Shader prefilterShader = LoadShader(PATH_SKYBOX_VS, PATH_PREFILTER_FS);
     Shader brdfShader = LoadShader(PATH_BRDF_VS, PATH_BRDF_FS);
-    Texture2D albedoTex = LoadTexture(PATH_TEXTURES_ALBEDO);
-    Texture2D normalsTex = LoadTexture(PATH_TEXTURES_NORMALS);
-    Texture2D metallicTex = LoadTexture(PATH_TEXTURES_METALLIC);
-    Texture2D roughnessTex = LoadTexture(PATH_TEXTURES_ROUGHNESS);
-    Texture2D aoTex = LoadTexture(PATH_TEXTURES_AO);
-    Texture2D heightTex = LoadTexture(PATH_TEXTURES_HEIGHT);
+    Texture2D albedoTex = ((useAlbedoMap) ? LoadTexture(PATH_TEXTURES_ALBEDO) : (Texture2D){ 0 });;
+    Texture2D normalsTex = ((useNormalMap) ? LoadTexture(PATH_TEXTURES_NORMALS) : (Texture2D){ 0 });
+    Texture2D metallicTex = ((useMetallicMap) ? LoadTexture(PATH_TEXTURES_METALLIC) : (Texture2D){ 0 });
+    Texture2D roughnessTex = ((useRoughnessMap) ? LoadTexture(PATH_TEXTURES_ROUGHNESS) : (Texture2D){ 0 });
+    Texture2D aoTex = ((useOcclusionMap) ? LoadTexture(PATH_TEXTURES_AO) : (Texture2D){ 0 });
+    Texture2D heightTex = ((useParallaxMap) ? LoadTexture(PATH_TEXTURES_HEIGHT) : (Texture2D){ 0 });
 
     // Set up materials and lighting
-    Material material = LoadDefaultMaterial();
+    Material material = { 0 };
     material.shader = pbrShader;
     model.material = material;
 
@@ -146,22 +164,14 @@ int main()
     int shaderRoughnessLoc = GetShaderLocation(model.material.shader, "roughness.color");
     int shaderAoLoc = GetShaderLocation(model.material.shader, "ao.color");
     int shaderHeightLoc = GetShaderLocation(model.material.shader, "height.color");
-    int shaderLightPosLoc[MAX_LIGHTS] = { -1 };
-    int shaderLightColorLoc[MAX_LIGHTS] = { -1 };
 
-    for (unsigned int i = 0; i < MAX_LIGHTS; i++)
-    {
-        char lightPosName[16] = "lightPos[x]\0";
-        lightPosName[9] = '0' + i;
-        shaderLightPosLoc[i] = GetShaderLocation(model.material.shader, lightPosName);
-    }
-
-    for (unsigned int i = 0; i < MAX_LIGHTS; i++)
-    {
-        char lightColorName[16] = "lightColor[x]\0";
-        lightColorName[11] = '0' + i;
-        shaderLightColorLoc[i] = GetShaderLocation(model.material.shader, lightColorName);
-    }
+    // Define lights attributes
+    int lightsCount = 0;
+    Light lights[MAX_LIGHTS] = { 0 };
+    lights[lightsCount] = CreateLight(LIGHT_POINT, (Vector3){ -1.0f, 1.0f, -1.0f }, (Vector3){ 0, 0, 0 }, (Color){ 255, 0, 0, 255 }, model.material.shader, &lightsCount);
+    lights[lightsCount] = CreateLight(LIGHT_POINT, (Vector3){ 1.0f, 1.0f, -1.0f }, (Vector3){ 0, 0, 0 }, (Color){ 0, 255, 0, 255 }, model.material.shader, &lightsCount);
+    lights[lightsCount] = CreateLight(LIGHT_POINT, (Vector3){ -1.0f, 1.0f, 1.0f }, (Vector3){ 0, 0, 0 }, (Color){ 0, 0, 255, 255 }, model.material.shader, &lightsCount);
+    lights[lightsCount] = CreateLight(LIGHT_DIRECTIONAL, (Vector3){ 3.0f, 2.0f, 3.0f }, (Vector3){ 0, 0, 0 }, (Color){ 255, 0, 255, 255 }, model.material.shader, &lightsCount);
 
     // Get cubemap shader locations
     int equirectangularMapLoc = GetShaderLocation(cubeShader, "equirectangularMap");
@@ -205,8 +215,6 @@ int main()
     glUniform1i(GetShaderLocation(model.material.shader, "height.sampler"), 8);
 
     // Set up material uniforms and other constant values
-    float lightColor[3] = { 1.0f, 1.0f, 1.0f };
-    for (unsigned int i = 0; i < MAX_LIGHTS; i++) SetShaderValue(model.material.shader, shaderLightColorLoc[i], lightColor, 3);
     float shaderAlbedo[3] = { 1.0f, 1.0f, 1.0f };
     SetShaderValue(model.material.shader, shaderAlbedoLoc, shaderAlbedo, 3);
     float shaderNormals[3] = { 0.5f, 0.5f, 1.0f };
@@ -226,7 +234,7 @@ int main()
     // Set up irradiance shader constant values
     glUseProgram(irradianceShader.id);
     glUniform1i(irradianceMapLoc, 0);
-    
+
     // Set up prefilter shader constant values
     glUseProgram(prefilterShader.id);
     glUniform1i(prefilterMapLoc, 0);
@@ -377,7 +385,7 @@ int main()
 
     // Unbind framebuffer and textures
     glBindFramebuffer(GL_FRAMEBUFFER, 0);   
-    
+
     // Generate BRDF convolution texture
     unsigned int brdfLut;
     glGenTextures(1, &brdfLut);
@@ -429,16 +437,16 @@ int main()
         else if (IsKeyPressed(KEY_F4)) selectedLight = 3;
 
         // Check for light position movement inputs
-        if (IsKeyDown(KEY_UP)) lightPosition[selectedLight].z += 0.1f;
-        else if (IsKeyDown(KEY_DOWN)) lightPosition[selectedLight].z -= 0.1f;
-        if (IsKeyDown(KEY_RIGHT)) lightPosition[selectedLight].x += 0.1f;
-        else if (IsKeyDown(KEY_LEFT)) lightPosition[selectedLight].x -= 0.1f;
-        if (IsKeyDown(KEY_W)) lightPosition[selectedLight].y += 0.1f;
-        else if (IsKeyDown(KEY_S)) lightPosition[selectedLight].y -= 0.1f;
-        
+        if (IsKeyDown(KEY_UP)) lights[selectedLight].position.z += 0.1f;
+        else if (IsKeyDown(KEY_DOWN)) lights[selectedLight].position.z -= 0.1f;
+        if (IsKeyDown(KEY_RIGHT)) lights[selectedLight].position.x += 0.1f;
+        else if (IsKeyDown(KEY_LEFT)) lights[selectedLight].position.x -= 0.1f;
+        if (IsKeyDown(KEY_W)) lights[selectedLight].position.y += 0.1f;
+        else if (IsKeyDown(KEY_S)) lights[selectedLight].position.y -= 0.1f;
+
         // Check for render mode inputs
-        if (IsKeyPressed('1')) mode = DEFAULT;
-        else if (IsKeyPressed('2')) mode = ALBEDO;
+        if (IsKeyPressed(KEY_ONE)) mode = DEFAULT;
+        else if (IsKeyPressed(KEY_TWO)) mode = ALBEDO;
         else if (IsKeyPressed(KEY_THREE)) mode = NORMALS;
         else if (IsKeyPressed(KEY_FOUR)) mode = METALLIC;
         else if (IsKeyPressed(KEY_FIVE)) mode = ROUGHNESS;
@@ -447,7 +455,7 @@ int main()
         else if (IsKeyPressed(KEY_EIGHT)) mode = FRESNEL;
         else if (IsKeyPressed(KEY_NINE)) mode = IRRADIANCE;
         else if (IsKeyPressed(KEY_ZERO)) mode = REFLECTION;
-        
+
         // Check for scene reset input
         if (IsKeyPressed(KEY_R))
         {
@@ -467,11 +475,7 @@ int main()
         SetShaderValuei(model.material.shader, shaderModeLoc, shaderMode, 1);
 
         // Update current light position
-        for (unsigned int i = 0; i < MAX_LIGHTS; i++)
-        {
-            float lightPos[3] = { lightPosition[i].x,  lightPosition[i].y, lightPosition[i].z };
-            SetShaderValue(model.material.shader, shaderLightPosLoc[i], lightPos, 3);
-        }
+        for (int i = 0; i < MAX_LIGHTS; i++) UpdateLightValues(model.material.shader, lights[i]);
 
         // Update camera values and send them to shader
         UpdateCamera(&camera);
@@ -625,11 +629,7 @@ int main()
                 }
 
                 // Draw light gizmos
-                for (unsigned int i = 0; ((i < MAX_LIGHTS) && drawLights); i++)
-                {
-                    DrawSphere(lightPosition[i], 0.025f, YELLOW);
-                    DrawSphereWires(lightPosition[i], 0.025f, 16, 16, ORANGE);
-                }
+                for (unsigned int i = 0; ((i < MAX_LIGHTS) && drawLights); i++) DrawLight(lights[i]);
 
                 // Calculate view matrix for custom shaders
                 Matrix view = MatrixLookAt(camera.position, camera.target, camera.up);
@@ -651,20 +651,24 @@ int main()
 
     // De-Initialization
     //------------------------------------------------------------------------------
-    // Unload external and allocated resources
+    // Unload loaded model mesh and binded textures
     UnloadModel(model);
-    UnloadTexture(albedoTex);
-    UnloadTexture(normalsTex);
-    UnloadTexture(metallicTex);
-    UnloadTexture(roughnessTex);
-    UnloadTexture(aoTex);
-    UnloadTexture(heightTex);
+    if (useAlbedoMap) UnloadTexture(albedoTex);
+    if (useNormalMap) UnloadTexture(normalsTex);
+    if (useMetallicMap) UnloadTexture(metallicTex);
+    if (useRoughnessMap) UnloadTexture(roughnessTex);
+    if (useOcclusionMap) UnloadTexture(aoTex);
+    if (useParallaxMap) UnloadTexture(heightTex);
+
+    // Unload all loaded shaders
     UnloadShader(pbrShader);
     UnloadShader(cubeShader);
     UnloadShader(skyShader);
     UnloadShader(irradianceShader);
     UnloadShader(prefilterShader);
     UnloadShader(brdfShader);
+
+    // Unload dynamic textures created in program initialization
     UnloadDynamicTexture(skyTex);
     UnloadDynamicTexture(cubeMap);
     UnloadDynamicTexture(irradianceMap);
@@ -717,14 +721,6 @@ void UnloadDynamicTexture(unsigned int id)
 void CaptureScreenshot(int width, int height)
 {
     // Read screen pixels and save image as PNG
-    unsigned char *imgData = ReadScreenPixels(width, height);
-    stbi_write_png("screenshot.png", width, height, 4, imgData, width*4);
-    free(imgData);
-}
-
-// Read screen pixel data (color buffer)
-unsigned char *ReadScreenPixels(int width, int height)
-{
     unsigned char *screenData = (unsigned char *)calloc(width*height*4, sizeof(unsigned char));
 
     // NOTE: glReadPixels returns image flipped vertically -> (0,0) is the bottom left corner of the framebuffer
@@ -747,122 +743,69 @@ unsigned char *ReadScreenPixels(int width, int height)
     }
 
     free(screenData);
-
-    return imgData;     // NOTE: image data should be freed
+    stbi_write_png("screenshot.png", width, height, 4, imgData, width*4);
+    free(imgData);
 }
 
-// Renders a 1x1 3D cube in NDC
-GLuint cubeVAO = 0;
-GLuint cubeVBO = 0;
-void RenderCube(void)
+// Defines a light type, position, target, color and get locations from shader
+Light CreateLight(int type, Vector3 pos, Vector3 targ, Color color, Shader shader, int *lightCount)
 {
-    // Initialize (if necessary)
-    if (cubeVAO == 0)
-    {
-        GLfloat vertices[] = {
-            // Back face
-            -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f,   // Bottom-left
-            1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f,    // top-right
-            1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f,    // bottom-right         
-            1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f,    // top-right
-            -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f,   // bottom-left
-            -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f,   // top-left
-            // Front face
-            -1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f,   // bottom-left
-            1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f,    // bottom-right
-            1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f,    // top-right
-            1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f,    // top-right
-            -1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f,   // top-left
-            -1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f,   // bottom-left
-            // Left face
-            -1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f,   // top-right
-            -1.0f,  1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f,   // top-left
-            -1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f,   // bottom-left
-            -1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f,   // bottom-left
-            -1.0f, -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f,   // bottom-right
-            -1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f,   // top-right
-            // Right face
-            1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f,    // top-left
-            1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f,    // bottom-right
-            1.0f,  1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f,    // top-right         
-            1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f,    // bottom-right
-            1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f,    // top-left
-            1.0f, -1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f,    // bottom-left     
-            // Bottom face
-            -1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f,   // top-right
-            1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f,    // top-left
-            1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f,    // bottom-left
-            1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f,    // bottom-left
-            -1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f,   // bottom-right
-            -1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f,   // top-right
-            // Top face
-            -1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f,   // top-left
-            1.0f,  1.0f , 1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f,    // bottom-right
-            1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f,    // top-right     
-            1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f,    // bottom-right
-            -1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f,   // top-left
-            -1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f    // bottom-left        
-        };
+    Light light = { 0 };
 
-        // Set up cube VAO
-        glGenVertexArrays(1, &cubeVAO);
-        glGenBuffers(1, &cubeVBO);
+    light.enabled = true;
+    light.type = type;
+    light.position = pos;
+    light.target = targ;
+    light.color = color;
 
-        // Fill buffer
-        glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    char enabledName[32] = "lights[x].enabled\0";
+    char typeName[32] = "lights[x].type\0";
+    char posName[32] = "lights[x].position\0";
+    char targetName[32] = "lights[x].target\0";
+    char colorName[32] = "lights[x].color\0";
+    enabledName[7] = '0' + *lightCount;
+    typeName[7] = '0' + *lightCount;
+    posName[7] = '0' + *lightCount;
+    targetName[7] = '0' + *lightCount;
+    colorName[7] = '0' + *lightCount;
 
-        // Link vertex attributes
-        glBindVertexArray(cubeVAO);
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8*sizeof(GLfloat), (GLvoid*)0);
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8*sizeof(GLfloat), (GLvoid*)(3*sizeof(GLfloat)));
-        glEnableVertexAttribArray(2);
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8*sizeof(GLfloat), (GLvoid*)(6*sizeof(GLfloat)));
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
-    }
+    light.enabledLoc = GetShaderLocation(shader, enabledName);
+    light.typeLoc = GetShaderLocation(shader, typeName);
+    light.posLoc = GetShaderLocation(shader, posName);
+    light.targetLoc = GetShaderLocation(shader, targetName);
+    light.colorLoc = GetShaderLocation(shader, colorName);
 
-    // Render cube
-    glBindVertexArray(cubeVAO);
-    glDrawArrays(GL_TRIANGLES, 0, 36);
-    glBindVertexArray(0);
+    UpdateLightValues(shader, light);
+    *lightCount += 1;
+
+    return light;
 }
 
-// Renders a 1x1 XY quad in NDC
-GLuint quadVAO = 0;
-GLuint quadVBO;
-void RenderQuad(void)
+// Send to shader light values
+void UpdateLightValues(Shader shader, Light light)
 {
-    if (quadVAO == 0) 
+    glUniform1i(light.enabledLoc, light.enabled);
+    glUniform1i(light.typeLoc, light.type);
+    float position[3] = { light.position.x, light.position.y, light.position.z };
+    SetShaderValue(shader, light.posLoc, position, 3);
+    float target[3] = { light.target.x, light.target.y, light.target.z };
+    SetShaderValue(shader, light.targetLoc, target, 3);
+    float diff[4] = { (float)light.color.r/(float)255, (float)light.color.g/(float)255, (float)light.color.b/(float)255, (float)light.color.a/(float)255 };
+    SetShaderValue(shader, light.colorLoc, diff, 4);
+}
+
+// Draw a light gizmo based on light attributes
+void DrawLight(Light light)
+{
+    switch (light.type)
     {
-        GLfloat quadVertices[] = {
-            // Positions        // Texture Coords
-            -1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
-            -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
-            1.0f, 1.0f, 0.0f, 1.0f, 1.0f,
-            1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
-        };
-
-        // Set up plane VAO
-        glGenVertexArrays(1, &quadVAO);
-        glGenBuffers(1, &quadVBO);
-        glBindVertexArray(quadVAO);
-
-        // Fill buffer
-        glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
-
-        // Link vertex attributes
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5*sizeof(GLfloat), (GLvoid*)0);
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5*sizeof(GLfloat), (GLvoid*)(3*sizeof(GLfloat)));
+        case LIGHT_DIRECTIONAL:
+        {
+            DrawSphere(light.position, 0.015f, (light.enabled ? light.color : GRAY));
+            DrawSphere(light.target, 0.015f, (light.enabled ? light.color : GRAY));
+            DrawLine3D(light.position, light.target, (light.enabled ? light.color : DARKGRAY));
+        } break;
+        case LIGHT_POINT: DrawSphere(light.position, 0.025f, (light.enabled ? light.color : GRAY));
+        default: break;
     }
-
-    // Render quad
-    glBindVertexArray(quadVAO);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    glBindVertexArray(0);
 }

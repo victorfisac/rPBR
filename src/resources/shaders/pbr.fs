@@ -1,13 +1,24 @@
 #version 330
+
 #define     MAX_LIGHTS              4
 #define     MAX_REFLECTION_LOD      4.0
 #define     MAX_DEPTH_LAYER         20
 #define     MIN_DEPTH_LAYER         10
+#define     LIGHT_DIRECTIONAL       0
+#define     LIGHT_POINT             1
 
 struct MaterialProperty {
     vec3 color;
     int useSampler;
     sampler2D sampler;
+};
+
+struct Light {
+    int enabled;
+    int type;
+    vec3 position;
+    vec3 target;
+    vec4 color;
 };
 
 // Input vertex attributes (from vertex shader)
@@ -26,8 +37,7 @@ uniform MaterialProperty ao;
 uniform MaterialProperty height;
 
 // Lighting parameters
-uniform vec3 lightPos[MAX_LIGHTS];
-uniform vec3 lightColor[MAX_LIGHTS];
+uniform Light lights[MAX_LIGHTS];
 
 // Environment parameters
 uniform samplerCube irradianceMap;
@@ -187,35 +197,44 @@ void main()
 
     for (int i = 0; i < MAX_LIGHTS; i++)
     {
-        // Calculate per-light radiance
-        vec3 light = normalize(lightPos[i] - fragPos);
-        vec3 high = normalize(view + light);
-        float distance = length(lightPos[i] - fragPos);
-        float attenuation = 1.0/(distance*distance);
-        vec3 radiance = lightColor[i]*attenuation;
+        if (lights[i].enabled == 1)
+        {
+            // Calculate per-light radiance
+            vec3 light = vec3(0.0);
+            vec3 radiance = lights[i].color.rgb;
+            if (lights[i].type == LIGHT_DIRECTIONAL) light = -normalize(lights[i].target - lights[i].position);
+            else if (lights[i].type == LIGHT_POINT)
+            {
+                light = normalize(lights[i].position - fragPos);
+                float distance = length(lights[i].position - fragPos);
+                float attenuation = 1.0/(distance*distance);
+                radiance *= attenuation;
+            }
 
-        // Cook-torrance BRDF
-        float NDF = DistributionGGX(normal, high, rough.r);
-        float G = GeometrySmith(normal, view, light, rough.r);
-        vec3 F = fresnelSchlick(max(dot(high, view), 0.0), F0);
-        vec3 nominator = NDF*G*F;
-        float denominator = 4*max(dot(normal, view), 0.0)*max(dot(normal, light), 0.0) + 0.001;
-        vec3 brdf = nominator/denominator;
+            // Cook-torrance BRDF
+            vec3 high = normalize(view + light);
+            float NDF = DistributionGGX(normal, high, rough.r);
+            float G = GeometrySmith(normal, view, light, rough.r);
+            vec3 F = fresnelSchlick(max(dot(high, view), 0.0), F0);
+            vec3 nominator = NDF*G*F;
+            float denominator = 4*max(dot(normal, view), 0.0)*max(dot(normal, light), 0.0) + 0.001;
+            vec3 brdf = nominator/denominator;
 
-        // Store to kS the fresnel value and calculate energy conservation
-        vec3 kS = F;
-        vec3 kD = vec3(1.0) - kS;
+            // Store to kS the fresnel value and calculate energy conservation
+            vec3 kS = F;
+            vec3 kD = vec3(1.0) - kS;
 
-        // Multiply kD by the inverse metalness such that only non-metals have diffuse lighting
-        kD *= 1.0 - metal.r;
+            // Multiply kD by the inverse metalness such that only non-metals have diffuse lighting
+            kD *= 1.0 - metal.r;
 
-        // Scale light by dot product between normal and light direction
-        float NdotL = max(dot(normal, light), 0.0);
+            // Scale light by dot product between normal and light direction
+            float NdotL = max(dot(normal, light), 0.0);
 
-        // Add to outgoing radiance Lo
-        // Note: BRDF is already multiplied by the Fresnel so it doesn't need to be multiplied again
-        Lo += (kD*color/PI + brdf)*radiance*NdotL;
-        lightDot += radiance*NdotL + brdf;
+            // Add to outgoing radiance Lo
+            // Note: BRDF is already multiplied by the Fresnel so it doesn't need to be multiplied again
+            Lo += (kD*color/PI + brdf)*radiance*NdotL*lights[i].color.a;
+            lightDot += radiance*NdotL + brdf*lights[i].color.a;
+        }
     }
 
     // Calculate ambient lighting using IBL
