@@ -25,7 +25,7 @@
 //----------------------------------------------------------------------------------
 // Defines
 //----------------------------------------------------------------------------------
-#define         PATH_MODEL                  "resources/models/cerberus.obj"
+#define         PATH_MODEL                  "resources/models/sphere.obj"
 #define         PATH_PBR_VS                 "resources/shaders/pbr.vs"
 #define         PATH_PBR_FS                 "resources/shaders/pbr.fs"
 #define         PATH_CUBE_VS                "resources/shaders/cubemap.vs"
@@ -37,18 +37,19 @@
 #define         PATH_BRDF_VS                "resources/shaders/brdf.vs"
 #define         PATH_BRDF_FS                "resources/shaders/brdf.fs"
 #define         PATH_HDR                    "resources/textures/hdr/hdr_apartament.hdr"
-#define         PATH_TEXTURES_ALBEDO        "resources/textures/cerberus/cerberus_albedo.png"
-#define         PATH_TEXTURES_NORMALS       "resources/textures/cerberus/cerberus_normals.png"
-#define         PATH_TEXTURES_METALLIC      "resources/textures/cerberus/cerberus_metallic.png"
-#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/cerberus/cerberus_roughness.png"
-#define         PATH_TEXTURES_AO            "resources/textures/cerberus/cerberus_ao.png"
+#define         PATH_TEXTURES_ALBEDO        "resources/textures/gold/gold_albedo.png"
+#define         PATH_TEXTURES_NORMALS       "resources/textures/gold/gold_normals.png"
+#define         PATH_TEXTURES_METALLIC      "resources/textures/gold/gold_metallic.png"
+#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/gold/gold_roughness.png"
+#define         PATH_TEXTURES_AO            "resources/textures/gold/gold_ao.png"
+#define         PATH_TEXTURES_HEIGHT        "resources/textures/gold/gold_height.png"
 
 #define         MAX_LIGHTS                  4               // Max lights supported by shader
 #define         MAX_ROWS                    1               // Rows to render models
 #define         MAX_COLUMNS                 1               // Columns to render models
 #define         MODEL_SCALE                 1.0f            // Model scale transformation for rendering
 #define         MODEL_OFFSET                0.45f           // Distance between models for rendering
-#define         ROTATION_SPEED              0.25f           // Models rotation speed
+#define         ROTATION_SPEED              0.0f            // Models rotation speed
 #define         CUBEMAP_SIZE                1024            // Cubemap texture size
 #define         IRRADIANCE_SIZE             32              // Irradiance map from cubemap texture size
 #define         PREFILTERED_SIZE            128             // Prefiltered HDR environment map texture size
@@ -119,6 +120,7 @@ int main()
     Texture2D metallicTex = LoadTexture(PATH_TEXTURES_METALLIC);
     Texture2D roughnessTex = LoadTexture(PATH_TEXTURES_ROUGHNESS);
     Texture2D aoTex = LoadTexture(PATH_TEXTURES_AO);
+    Texture2D heightTex = LoadTexture(PATH_TEXTURES_HEIGHT);
 
     // Set up materials and lighting
     Material material = LoadDefaultMaterial();
@@ -134,6 +136,7 @@ int main()
     int shaderMetallicLoc = GetShaderLocation(model.material.shader, "metallic.color");    
     int shaderRoughnessLoc = GetShaderLocation(model.material.shader, "roughness.color");
     int shaderAoLoc = GetShaderLocation(model.material.shader, "ao.color");
+    int shaderHeightLoc = GetShaderLocation(model.material.shader, "height.color");
     int shaderLightPosLoc[MAX_LIGHTS] = { -1 };
     int shaderLightColorLoc[MAX_LIGHTS] = { -1 };
 
@@ -179,6 +182,7 @@ int main()
     glUniform1i(GetShaderLocation(model.material.shader, "metallic.useSampler"), 1);
     glUniform1i(GetShaderLocation(model.material.shader, "roughness.useSampler"), 1);
     glUniform1i(GetShaderLocation(model.material.shader, "ao.useSampler"), 1);
+    glUniform1i(GetShaderLocation(model.material.shader, "height.useSampler"), 0);
 
     glUniform1i(GetShaderLocation(model.material.shader, "irradianceMap"), 0);
     glUniform1i(GetShaderLocation(model.material.shader, "prefilterMap"), 1);
@@ -188,12 +192,15 @@ int main()
     glUniform1i(GetShaderLocation(model.material.shader, "metallic.sampler"), 5);
     glUniform1i(GetShaderLocation(model.material.shader, "roughness.sampler"), 6);
     glUniform1i(GetShaderLocation(model.material.shader, "ao.sampler"), 7);
+    glUniform1i(GetShaderLocation(model.material.shader, "height.sampler"), 8);
     float shaderAlbedo[3] = { 1.0f, 1.0f, 1.0f };
     SetShaderValue(model.material.shader, shaderAlbedoLoc, shaderAlbedo, 3);
     float shaderNormals[3] = { 0.5f, 0.5f, 1.0f };
     SetShaderValue(model.material.shader, shaderNormalsLoc, shaderNormals, 3);
     float shaderAo[3] = { 1.0f , 1.0f, 1.0f };
     SetShaderValue(model.material.shader, shaderAoLoc, shaderAo, 3);
+    float shaderHeight[3] = { 0.1f , 0.0f, 0.0f };
+    SetShaderValue(model.material.shader, shaderHeightLoc, shaderHeight, 3);
     float lightColor[3] = { 1.0f, 1.0f, 1.0f };
     for (unsigned int i = 0; i < MAX_LIGHTS; i++) SetShaderValue(model.material.shader, shaderLightColorLoc[i], lightColor, 3);
 
@@ -521,6 +528,10 @@ int main()
                         glActiveTexture(GL_TEXTURE7);
                         glBindTexture(GL_TEXTURE_2D, aoTex.id);
 
+                        // Enable and bind parallax height map
+                        glActiveTexture(GL_TEXTURE8);
+                        glBindTexture(GL_TEXTURE_2D, heightTex.id);
+
                         // Draw model using PBR shader and textures maps
                         DrawModelEx(model, (Vector3){ rows*MODEL_OFFSET, 0.0f, col*MODEL_OFFSET }, rotationAxis, rotationAngle, (Vector3){ MODEL_SCALE, MODEL_SCALE, MODEL_SCALE }, WHITE);
 
@@ -554,6 +565,10 @@ int main()
 
                         // Disable and unbind ambient occlusion map
                         glActiveTexture(GL_TEXTURE7);
+                        glBindTexture(GL_TEXTURE_2D, 0);
+
+                        // Disable and bind parallax height map
+                        glActiveTexture(GL_TEXTURE8);
                         glBindTexture(GL_TEXTURE_2D, 0);
                     }
                 }
@@ -592,6 +607,7 @@ int main()
     UnloadTexture(metallicTex);
     UnloadTexture(roughnessTex);
     UnloadTexture(aoTex);
+    UnloadTexture(heightTex);
     UnloadShader(pbrShader);
     UnloadShader(cubeShader);
     UnloadShader(skyShader);

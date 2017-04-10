@@ -1,6 +1,8 @@
 #version 330
 #define     MAX_LIGHTS              4
 #define     MAX_REFLECTION_LOD      4.0
+#define     MAX_DEPTH_LAYER         20
+#define     MIN_DEPTH_LAYER         10
 
 struct MaterialProperty {
     vec3 color;
@@ -21,6 +23,7 @@ uniform MaterialProperty normals;
 uniform MaterialProperty metallic;
 uniform MaterialProperty roughness;
 uniform MaterialProperty ao;
+uniform MaterialProperty height;
 
 // Lighting parameters
 uniform vec3 lightPos[MAX_LIGHTS];
@@ -34,6 +37,7 @@ uniform sampler2D brdfLUT;
 // Other parameters
 uniform int renderMode;
 uniform vec3 viewPos;
+vec2 texCoord;
 const float PI = 3.14159265359;
 
 // Output fragment color
@@ -45,10 +49,11 @@ float GeometrySchlickGGX(float NdotV, float roughness);
 float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 vec3 fresnelSchlick(float cosTheta, vec3 F0);
 vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
+vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir);
 
 vec3 ComputeMaterialProperty(MaterialProperty property)
 {
-    if (property.useSampler == 1) return texture(property.sampler, fragTexCoord).rgb;
+    if (property.useSampler == 1) return texture(property.sampler, texCoord).rgb;
     else return property.color;
 }
 
@@ -96,14 +101,52 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
     return F0 + (max(vec3(1.0 - roughness), F0) - F0)*pow(1.0 - cosTheta, 5.0);
 }
 
+vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir)
+{
+    // Calculate the number of depth layers and calculate the size of each layer
+    float numLayers = mix(MAX_DEPTH_LAYER, MIN_DEPTH_LAYER, abs(dot(vec3(0.0, 0.0, 1.0), viewDir)));  
+    float layerDepth = 1.0/numLayers;
+
+    // Calculate depth of current layer
+    float currentLayerDepth = 0.0;
+
+    // Calculate the amount to shift the texture coordinates per layer (from vector P)
+    // Note: height amount is stored in height material attribute color R channel (sampler use is independent)
+    vec2 P = viewDir.xy*height.color.r; 
+    vec2 deltaTexCoords = P/numLayers;
+
+    // Store initial texture coordinates and depth values
+    vec2 currentTexCoords = texCoords;
+    float currentDepthMapValue = texture(height.sampler, currentTexCoords).r;
+
+    while (currentLayerDepth < currentDepthMapValue)
+    {
+        // Shift texture coordinates along direction of P
+        currentTexCoords -= deltaTexCoords;
+
+        // Get depth map value at current texture coordinates
+        currentDepthMapValue = texture(height.sampler, currentTexCoords).r;
+
+        // Get depth of next layer
+        currentLayerDepth += layerDepth;  
+    }
+
+    // Get texture coordinates before collision (reverse operations)
+    vec2 prevTexCoords = currentTexCoords + deltaTexCoords;
+
+    // Get depth after and before collision for linear interpolation
+    float afterDepth = currentDepthMapValue - currentLayerDepth;
+    float beforeDepth = texture(height.sampler, prevTexCoords).r - currentLayerDepth + layerDepth;
+
+    // Interpolation of texture coordinates
+    float weight = afterDepth/(afterDepth - beforeDepth);
+    vec2 finalTexCoords = prevTexCoords*weight + currentTexCoords*(1.0 - weight);
+
+    return finalTexCoords;
+}
+
 void main()
 {
-    // Fetch material values from texture sampler or color attributes
-    vec3 color = pow(ComputeMaterialProperty(albedo), vec3(2.2));
-    vec3 metal = ComputeMaterialProperty(metallic);
-    vec3 rough = ComputeMaterialProperty(roughness);
-    vec3 occlusion = ComputeMaterialProperty(ao);
-
     // Calculate TBN and RM matrices
     mat3 TBN = transpose(mat3(fragTangent, fragBinormal, fragNormal));
 
@@ -111,6 +154,16 @@ void main()
     vec3 normal = normalize(fragNormal);
     vec3 view = normalize(viewPos - fragPos);
     vec3 refl = reflect(-view, normal);
+
+    // Check if parallax mapping is enabled and calculate texture coordinates to use based on height map
+    if (height.useSampler == 1) texCoord = ParallaxMapping(fragTexCoord, view);
+    else texCoord = fragTexCoord;   // Use default texture coordinates
+
+    // Fetch material values from texture sampler or color attributes
+    vec3 color = pow(ComputeMaterialProperty(albedo), vec3(2.2));
+    vec3 metal = ComputeMaterialProperty(metallic);
+    vec3 rough = ComputeMaterialProperty(roughness);
+    vec3 occlusion = ComputeMaterialProperty(ao);
 
     // Check if normal mapping is enabled
     if (normals.useSampler == 1)
