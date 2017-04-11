@@ -18,7 +18,7 @@
 // Defines
 //----------------------------------------------------------------------------------
 #define         PATH_MODEL                  "resources/models/cerberus.obj"
-#define         PATH_HDR                    "resources/textures/hdr/hdr_pinetree.hdr"
+#define         PATH_HDR                    "resources/textures/hdr/road.hdr"
 #define         PATH_TEXTURES_ALBEDO        "resources/textures/cerberus/cerberus_albedo.png"
 #define         PATH_TEXTURES_NORMALS       "resources/textures/cerberus/cerberus_normals.png"
 #define         PATH_TEXTURES_METALLIC      "resources/textures/cerberus/cerberus_metallic.png"
@@ -84,7 +84,7 @@ int main()
 
     // Load external resources
     Model model = LoadModel(PATH_MODEL);
-    MaterialPBR matPBR = SetupMaterialPBR(environment, (Color){ 255, 255, 255, 255 }, 0, 255);
+    MaterialPBR matPBR = SetupMaterialPBR(environment, (Color){ 255 }, 255, 255);
 #if defined(PATH_TEXTURES_ALBEDO)
     SetMaterialTexturePBR(&matPBR, PBR_ALBEDO, LoadTexture(PATH_TEXTURES_ALBEDO));
 #endif
