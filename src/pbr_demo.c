@@ -18,7 +18,7 @@
 // Defines
 //----------------------------------------------------------------------------------
 #define         PATH_MODEL                  "resources/models/cerberus.obj"
-#define         PATH_HDR                    "resources/textures/hdr/road.hdr"
+#define         PATH_HDR                    "resources/textures/hdr/apartament.hdr"
 #define         PATH_TEXTURES_ALBEDO        "resources/textures/cerberus/cerberus_albedo.png"
 #define         PATH_TEXTURES_NORMALS       "resources/textures/cerberus/cerberus_normals.png"
 #define         PATH_TEXTURES_METALLIC      "resources/textures/cerberus/cerberus_metallic.png"
@@ -62,12 +62,6 @@ int main()
     bool drawGrid = true;
     bool drawLights = true;
     bool drawSkybox = true;
-    bool useAlbedoMap = true;
-    bool useNormalMap = true;
-    bool useMetallicMap = true;
-    bool useRoughnessMap = true;
-    bool useOcclusionMap = true;
-    bool useParallaxMap = false;
 
     // Define the camera to look into our 3d world, its mode and model drawing position
     float rotationAngle = 0.0f;

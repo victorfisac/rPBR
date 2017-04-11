@@ -133,6 +133,8 @@ MaterialPBR SetupMaterialPBR(Environment env, Color albedo, int metallic, int ro
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "ao.sampler"), 7);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "height.sampler"), 8);
 
+    printf("INFO: [PBR] PBR material set up successfully\n");
+
     return mat;
 }
 
@@ -468,7 +470,9 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
 
     // Reset viewport dimensions to default
     glViewport(0, 0, GetScreenWidth(), GetScreenHeight());
-    
+
+    printf("INFO: [PBR] loaded HDR environment successfully\n");
+
     return env;
 }
 
@@ -833,7 +837,7 @@ void UnloadMaterialPBR(MaterialPBR mat)
     if (mat.useOcclusionMap) UnloadTexture(mat.aoTex);
     if (mat.useParallaxMap) UnloadTexture(mat.heightTex);
 
-    printf("INFO: unloaded PBR material textures successfully\n");
+    printf("INFO: [PBR] unloaded PBR material textures successfully\n");
 }
 
 // Unload environment loaded shaders and dynamic textures
@@ -853,5 +857,5 @@ void UnloadEnvironment(Environment env)
     glDeleteTextures(1, &env.prefilterId);
     glDeleteTextures(1, &env.brdfId);
     
-    printf("INFO: unloaded environment successfully\n");
+    printf("INFO: [PBR] unloaded environment successfully\n");
 }
