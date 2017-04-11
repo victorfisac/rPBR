@@ -24,7 +24,7 @@
 #define         PATH_TEXTURES_METALLIC      "resources/textures/cerberus/cerberus_metallic.png"
 #define         PATH_TEXTURES_ROUGHNESS     "resources/textures/cerberus/cerberus_roughness.png"
 #define         PATH_TEXTURES_AO            "resources/textures/cerberus/cerberus_ao.png"
-#define         PATH_TEXTURES_HEIGHT        "resources/textures/cerberus/cerberus_height.png"
+// #define         PATH_TEXTURES_HEIGHT        "resources/textures/cerberus/cerberus_height.png"
 
 #define         MAX_LIGHTS                  4               // Max lights supported by shader
 #define         MAX_ROWS                    1               // Rows to render models
@@ -84,13 +84,25 @@ int main()
 
     // Load external resources
     Model model = LoadModel(PATH_MODEL);
-    MaterialPBR matPBR = SetupMaterialPBR(environment, useAlbedoMap, useNormalMap, useMetallicMap, useRoughnessMap, useOcclusionMap, useParallaxMap);
-    if (matPBR.useAlbedoMap) matPBR.albedoTex = LoadTexture(PATH_TEXTURES_ALBEDO);
-    if (matPBR.useNormalMap) matPBR.normalsTex = LoadTexture(PATH_TEXTURES_NORMALS);
-    if (matPBR.useMetallicMap) matPBR.metallicTex = LoadTexture(PATH_TEXTURES_METALLIC);
-    if (matPBR.useRoughnessMap) matPBR.roughnessTex = LoadTexture(PATH_TEXTURES_ROUGHNESS);
-    if (matPBR.useOcclusionMap) matPBR.aoTex = LoadTexture(PATH_TEXTURES_AO);
-    if (matPBR.useParallaxMap) matPBR.heightTex = LoadTexture(PATH_TEXTURES_HEIGHT);
+    MaterialPBR matPBR = SetupMaterialPBR(environment, (Color){ 255, 255, 255, 255 }, 0, 255);
+#if defined(PATH_TEXTURES_ALBEDO)
+    SetMaterialTexturePBR(&matPBR, PBR_ALBEDO, LoadTexture(PATH_TEXTURES_ALBEDO));
+#endif
+#if defined(PATH_TEXTURES_NORMALS)
+    SetMaterialTexturePBR(&matPBR, PBR_NORMALS, LoadTexture(PATH_TEXTURES_NORMALS));
+#endif
+#if defined(PATH_TEXTURES_METALLIC)
+    SetMaterialTexturePBR(&matPBR, PBR_METALLIC, LoadTexture(PATH_TEXTURES_METALLIC));
+#endif
+#if defined(PATH_TEXTURES_ROUGHNESS)
+    SetMaterialTexturePBR(&matPBR, PBR_ROUGHNESS, LoadTexture(PATH_TEXTURES_ROUGHNESS));
+#endif
+#if defined(PATH_TEXTURES_AO)
+    SetMaterialTexturePBR(&matPBR, PBR_AO, LoadTexture(PATH_TEXTURES_AO));
+#endif
+#if defined(PATH_TEXTURES_HEIGHT)
+    SetMaterialTexturePBR(&matPBR, PBR_HEIGHT, LoadTexture(PATH_TEXTURES_HEIGHT));
+#endif
 
     // Set up materials and lighting
     Material material = { 0 };

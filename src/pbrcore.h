@@ -69,13 +69,30 @@ typedef struct MaterialPBR {
     bool useOcclusionMap;
     bool useParallaxMap;
 
+    Color albedoColor;
+    Color normalsColor;
+    Color metallicColor;
+    Color roughnessColor;
+    Color aoColor;
+    Color heightColor;
+
     Environment env;
 } MaterialPBR;
+
+typedef enum TypePBR {
+    PBR_ALBEDO,
+    PBR_NORMALS,
+    PBR_METALLIC,
+    PBR_ROUGHNESS,
+    PBR_AO,
+    PBR_HEIGHT
+} TypePBR;
 
 //----------------------------------------------------------------------------------
 // Functions Declaration
 //----------------------------------------------------------------------------------
-MaterialPBR SetupMaterialPBR(Environment env, bool albedo, bool normals, bool metal, bool rough, bool ao, bool height);         // Set up PBR environment shader constant values
+MaterialPBR SetupMaterialPBR(Environment env, Color albedo, int metallic, int roughness);                                       // Set up PBR environment shader constant values
+void SetMaterialTexturePBR(MaterialPBR *mat, TypePBR type, Texture2D texture);                                                  // Set texture to PBR material
 Light CreateLight(int type, Vector3 pos, Vector3 targ, Color color, Shader shader, int *lightCount);                            // Defines a light type, position, target, color and get locations from shader
 Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianceSize, int prefilterSize, int brdfSize);        // Load an environment cubemap, irradiance, prefilter and PBR scene
 
@@ -94,29 +111,21 @@ void UnloadEnvironment(Environment env);                                        
 // Functions Definition
 //----------------------------------------------------------------------------------
 // Set up PBR environment shader constant values
-MaterialPBR SetupMaterialPBR(Environment env, bool albedo, bool normals, bool metal, bool rough, bool ao, bool height)
+MaterialPBR SetupMaterialPBR(Environment env, Color albedo, int metallic, int roughness)
 {
-    MaterialPBR mat = { 0 };
+    MaterialPBR mat;
 
-    // Assign environment to PBR material
-    mat.useAlbedoMap = albedo;
-    mat.useNormalMap = normals;
-    mat.useMetallicMap = metal;
-    mat.useRoughnessMap = rough;
-    mat.useOcclusionMap = ao;
-    mat.useParallaxMap = height;
+    mat.albedoColor = albedo;
+    mat.normalsColor = (Color){ 128, 128, 255, 255 };
+    mat.metallicColor = (Color){ metallic, 0, 0, 0 };
+    mat.roughnessColor = (Color){ roughness, 0, 0, 0 };
+    mat.aoColor = (Color){ 255, 255, 255, 255 };
+    mat.heightColor = (Color){ 0, 0, 0, 0 };
+
     mat.env = env;
 
-    // Send sampler use state to PBR shader
-    glUseProgram(env.pbrShader.id);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "albedo.useSampler"), albedo);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "normals.useSampler"), normals);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "metallic.useSampler"), metal);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "roughness.useSampler"), rough);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "ao.useSampler"), ao);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "height.useSampler"), height);
-
     // Set up PBR shader material texture units
+    glUseProgram(mat.env.pbrShader.id);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "albedo.sampler"), 3);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "normals.sampler"), 4);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "metallic.sampler"), 5);
@@ -124,21 +133,49 @@ MaterialPBR SetupMaterialPBR(Environment env, bool albedo, bool normals, bool me
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "ao.sampler"), 7);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "height.sampler"), 8);
 
-    // Set up material uniforms and other constant values
-    float shaderAlbedo[3] = { 1.0f, 1.0f, 1.0f };
-    SetShaderValue(env.pbrShader, GetShaderLocation(mat.env.pbrShader, "albedo.color"), shaderAlbedo, 3);
-    float shaderNormals[3] = { 0.5f, 0.5f, 1.0f };
-    SetShaderValue(env.pbrShader, GetShaderLocation(mat.env.pbrShader, "normals.color"), shaderNormals, 3);
-    float shaderMetallic[3] = { 0.0f, 0.0f, 0.0f };
-    SetShaderValue(env.pbrShader, GetShaderLocation(mat.env.pbrShader, "metallic.color"), shaderMetallic, 3);
-    float shaderRoughness[3] = { 0.0f, 0.0f, 0.0f };
-    SetShaderValue(env.pbrShader, GetShaderLocation(mat.env.pbrShader, "roughness.color"), shaderRoughness, 3);
-    float shaderAo[3] = { 1.0f , 1.0f, 1.0f };
-    SetShaderValue(env.pbrShader, GetShaderLocation(mat.env.pbrShader, "ao.color"), shaderAo, 3);
-    float shaderHeight[3] = { 0.0f , 0.0f, 0.0f };
-    SetShaderValue(env.pbrShader, GetShaderLocation(mat.env.pbrShader, "height.color"), shaderHeight, 3);
-
     return mat;
+}
+
+// Set texture to PBR material
+void SetMaterialTexturePBR(MaterialPBR *mat, TypePBR type, Texture2D texture)
+{
+    // Apply changes to material and send sampler use state to material shader
+    glUseProgram(mat->env.pbrShader.id);
+
+    switch (type)
+    {
+        case PBR_ALBEDO:
+        {
+            mat->albedoTex = texture;
+            mat->useAlbedoMap = true;
+        } break;
+        case PBR_NORMALS:
+        {
+            mat->normalsTex = texture;
+            mat->useNormalMap = true;
+        } break;
+        case PBR_METALLIC:
+        {
+            mat->metallicTex = texture;
+            mat->useMetallicMap = true;
+        } break;
+        case PBR_ROUGHNESS:
+        {
+            mat->roughnessTex = texture;
+            mat->useRoughnessMap = true;
+        } break;
+        case PBR_AO:
+        {
+            mat->aoTex = texture;
+            mat->useOcclusionMap = true;
+        } break;
+        case PBR_HEIGHT:
+        {
+            mat->heightTex = texture;
+            mat->useParallaxMap = true;
+        } break;
+        default: break;
+    }
 }
 
 // Defines a light type, position, target, color and get locations from shader
@@ -453,6 +490,29 @@ void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotati
 {
     // Switch to PBR shader
     glUseProgram(mat.env.pbrShader.id);
+
+    // Set up material uniforms and other constant values
+    float shaderAlbedo[3] = { (float)mat.albedoColor.r/(float)255, (float)mat.albedoColor.g/(float)255, (float)mat.albedoColor.b/(float)255 };
+    SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "albedo.color"), shaderAlbedo, 3);
+    float shaderNormals[3] = { (float)mat.normalsColor.r/(float)255, (float)mat.normalsColor.g/(float)255, (float)mat.normalsColor.b/(float)255 };
+    SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "normals.color"), shaderNormals, 3);
+    float shaderMetallic[3] = { (float)mat.metallicColor.r/(float)255, (float)mat.metallicColor.g/(float)255, (float)mat.metallicColor.b/(float)255 };
+    SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "metallic.color"), shaderMetallic, 3);
+    float shaderRoughness[3] = { 1.0f - (float)mat.roughnessColor.r/(float)255, 1.0f - (float)mat.roughnessColor.g/(float)255, 1.0f - (float)mat.roughnessColor.b/(float)255 };
+    SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "roughness.color"), shaderRoughness, 3);
+    float shaderAo[3] = { (float)mat.aoColor.r/(float)255, (float)mat.aoColor.g/(float)255, (float)mat.aoColor.b/(float)255 };
+    SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "ao.color"), shaderAo, 3);
+    float shaderHeight[3] = { (float)mat.heightColor.r/(float)255, (float)mat.heightColor.g/(float)255, (float)mat.heightColor.b/(float)255 };
+    SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "height.color"), shaderHeight, 3);
+
+    // Send sampler use state to PBR shader
+    glUseProgram(mat.env.pbrShader.id);
+    glUniform1i(GetShaderLocation(mat.env.pbrShader, "albedo.useSampler"), mat.useAlbedoMap);
+    glUniform1i(GetShaderLocation(mat.env.pbrShader, "normals.useSampler"), mat.useNormalMap);
+    glUniform1i(GetShaderLocation(mat.env.pbrShader, "metallic.useSampler"), mat.useMetallicMap);
+    glUniform1i(GetShaderLocation(mat.env.pbrShader, "roughness.useSampler"), mat.useRoughnessMap);
+    glUniform1i(GetShaderLocation(mat.env.pbrShader, "ao.useSampler"), mat.useOcclusionMap);
+    glUniform1i(GetShaderLocation(mat.env.pbrShader, "height.useSampler"), mat.useParallaxMap);
 
     // Calculate and send to shader model matrix
     Matrix matScale = MatrixScale(scale.x, scale.y, scale.z);
