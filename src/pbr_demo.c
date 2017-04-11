@@ -76,7 +76,7 @@ int main()
     SetCameraMode(camera, CAMERA_FREE);
 
     // Enable Multi Sampling Anti Aliasing 4x (if available)
-    SetConfigFlags(FLAG_MSAA_4X_HINT);
+    SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
     InitWindow(screenWidth, screenHeight, "rPBR - Physically Based Rendering");
 
     // Define environment attributes
