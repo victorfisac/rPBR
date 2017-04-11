@@ -1,6 +1,6 @@
 /*******************************************************************************************
 *
-*   pbraylib [math] - Physically Based Rendering math functions for raylib
+*   rPBR [math] - Physically Based Rendering math functions for raylib
 *
 *   Copyright (c) 2017 Victor Fisac
 *
@@ -9,7 +9,8 @@
 //----------------------------------------------------------------------------------
 // Includes
 //----------------------------------------------------------------------------------
-#include <math.h>
+#include "raylib.h"                         // Required for raylib framework
+#include <math.h>                           // Required for: cosf(), sinf(), tanf()
 
 //----------------------------------------------------------------------------------
 // Functions Declaration
@@ -343,7 +344,7 @@ Matrix MatrixFrustum(double left, double right, double bottom, double top, doubl
 // Returns perspective projection matrix
 Matrix MatrixPerspective(double fovy, double aspect, double near, double far)
 {
-    double top = near*tan(fovy*PI/360.0);
+    double top = near*tanf(fovy*PI/360.0);
     double right = top*aspect;
 
     return MatrixFrustum(-right, right, -top, top, near, far);

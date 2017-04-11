@@ -9,12 +9,13 @@
 //----------------------------------------------------------------------------------
 // Includes
 //----------------------------------------------------------------------------------
-#include "external/stb_image_write.h"                   // Required for image saving
+#include <stdlib.h>                                 // Required for: free()
+#include "external/stb_image_write.h"               // Required for image saving
 
 //----------------------------------------------------------------------------------
 // Functions Declaration
 //----------------------------------------------------------------------------------
-void CaptureScreenshot(int width, int height);          // Take screenshot from screen and save it
+void CaptureScreenshot(int width, int height);      // Take screenshot from screen and save it
 
 //----------------------------------------------------------------------------------
 // Functions Definition

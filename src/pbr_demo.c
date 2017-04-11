@@ -1,6 +1,6 @@
 /***********************************************************************************
 *
-*   pbraylib - Physically Based Rendering for raylib
+*   rPBR - Physically Based Rendering for raylib
 *
 *   Copyright (c) 2017 Victor Fisac
 *
@@ -9,17 +9,10 @@
 //----------------------------------------------------------------------------------
 // Includes
 //----------------------------------------------------------------------------------
-#include <stdlib.h>                         // Required for: exit(), free()
-#include <stdio.h>                          // Required for: printf()
-#include <string.h>                         // Required for: strcpy()
-#include <math.h>                           // Required for: pow()
-
 #include "raylib.h"                         // Required for raylib framework
 #include "pbrmath.h"                        // Required for matrix and vectors math
 #include "pbrcore.h"                        // Required for lighting, environment and drawing functions
 #include "pbrutils.h"                       // Required for utilities
-
-#include "external/glad.h"                  // Required for OpenGL API
 
 //----------------------------------------------------------------------------------
 // Defines

@@ -9,7 +9,8 @@
 //----------------------------------------------------------------------------------
 // Includes
 //----------------------------------------------------------------------------------
-#include "raylib.h"                         // Required for raylib framework
+#include <stdio.h>                          // Required for: printf()
+#include <math.h>                           // Required for: pow()
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "external/stb_image.h"             // Required for image loading
@@ -88,7 +89,6 @@ void RenderQuad(void);                                                          
 
 void UnloadMaterialPBR(MaterialPBR mat);                                                                                        // Unload material PBR textures
 void UnloadEnvironment(Environment env);                                                                                        // Unload environment loaded shaders and dynamic textures
-
 
 //----------------------------------------------------------------------------------
 // Functions Definition
@@ -641,7 +641,7 @@ void DrawSkybox(Environment environment, Camera camera)
     glUseProgram(environment.skyShader.id);
     SetShaderValueMatrix(environment.skyShader, environment.skyViewLoc, view);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, environment.prefilterId);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, environment.cubemapId);
 
     // Render skybox cube
     RenderCube();
