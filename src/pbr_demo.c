@@ -28,6 +28,7 @@
 #define         PATH_SHADERS_POSTFX_VS      "resources/shaders/postfx.vs"
 #define         PATH_SHADERS_FXAA_FS        "resources/shaders/fxaa.fs"
 #define         PATH_SHADERS_BLOOM_FS       "resources/shaders/bloom.fs"
+#define         PATH_SHADERS_VIGNETTE_FS    "resources/shaders/vignette.fs"
 
 #define         MAX_LIGHTS                  4               // Max lights supported by shader
 #define         MAX_ROWS                    1               // Rows to render models
@@ -117,16 +118,20 @@ int main()
     lights[lightsCount] = CreateLight(LIGHT_POINT, (Vector3){ -1.0f, 1.0f, 1.0f }, (Vector3){ 0, 0, 0 }, (Color){ 0, 0, 255, 255 }, model.material.shader, &lightsCount);
     lights[lightsCount] = CreateLight(LIGHT_DIRECTIONAL, (Vector3){ 3.0f, 2.0f, 3.0f }, (Vector3){ 0, 0, 0 }, (Color){ 255, 0, 255, 255 }, model.material.shader, &lightsCount);
 
-    // Create a render texture for antialiasing post-processing effect and initialize FXAA shader
-    RenderTexture2D fxaaTarget = LoadRenderTexture(screenWidth, screenHeight);
-    Shader fxaaShader = LoadShader(PATH_SHADERS_POSTFX_VS, PATH_SHADERS_FXAA_FS);
-    float resolution[2] = { (float)screenWidth, (float)screenHeight };
-    SetShaderValue(fxaaShader, GetShaderLocation(fxaaShader, "resolution"), resolution, 2);
-    
     // Create a render texture for antialiasing post-processing effect and initialize Bloom shader
     RenderTexture2D bloomTarget = LoadRenderTexture(screenWidth, screenHeight);
     Shader bloomShader = LoadShader(PATH_SHADERS_POSTFX_VS, PATH_SHADERS_BLOOM_FS);
+    float resolution[2] = { (float)screenWidth, (float)screenHeight };
     SetShaderValue(bloomShader, GetShaderLocation(bloomShader, "resolution"), resolution, 2);
+
+    // Create a render texture for antialiasing post-processing effect and initialize Bloom shader
+    RenderTexture2D vignetteTarget = LoadRenderTexture(screenWidth, screenHeight);
+    Shader vignetteShader = LoadShader(PATH_SHADERS_POSTFX_VS, PATH_SHADERS_VIGNETTE_FS);
+
+    // Create a render texture for antialiasing post-processing effect and initialize FXAA shader
+    RenderTexture2D fxaaTarget = LoadRenderTexture(screenWidth, screenHeight);
+    Shader fxaaShader = LoadShader(PATH_SHADERS_POSTFX_VS, PATH_SHADERS_FXAA_FS);
+    SetShaderValue(fxaaShader, GetShaderLocation(fxaaShader, "resolution"), resolution, 2);
 
     // Set our game to run at 60 frames-per-second
     SetTargetFPS(60);
@@ -221,7 +226,7 @@ int main()
             EndTextureMode();
 
             // Render antialiased texture to other texture for bloom post-processing
-            BeginTextureMode(fxaaTarget);
+            BeginTextureMode(vignetteTarget);
 
                 BeginShaderMode(bloomShader);
 
@@ -230,7 +235,18 @@ int main()
                 EndShaderMode();
 
             EndTextureMode();
-            
+
+            // Render antialiased texture to other texture for bloom post-processing
+            BeginTextureMode(fxaaTarget);
+
+                BeginShaderMode(vignetteShader);
+
+                    DrawTextureRec(vignetteTarget.texture, (Rectangle){ 0, 0, vignetteTarget.texture.width, -vignetteTarget.texture.height }, (Vector2){ 0, 0 }, WHITE);
+
+                EndShaderMode();
+
+            EndTextureMode();
+
             // Draw antialiasing and bloom post-processing quad
             BeginShaderMode(fxaaShader);
 
@@ -256,10 +272,12 @@ int main()
     UnloadEnvironment(environment);
     
     // Unload other resources
-    UnloadShader(fxaaShader);
     UnloadShader(bloomShader);
-    UnloadRenderTexture(fxaaTarget);
+    UnloadShader(vignetteShader);
+    UnloadShader(fxaaShader);
     UnloadRenderTexture(bloomTarget);
+    UnloadRenderTexture(vignetteTarget);
+    UnloadRenderTexture(fxaaTarget);
 
     // Close window and OpenGL context
     CloseWindow();
