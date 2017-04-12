@@ -4,7 +4,7 @@
 // Input vertex attributes (from vertex shader)
 in vec2 fragTexCoord;
 
-// Other parameters
+// Constant values
 const float PI = 3.14159265359;
 
 // Output fragment color

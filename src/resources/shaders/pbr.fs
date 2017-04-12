@@ -28,7 +28,7 @@ in vec3 fragNormal;
 in vec3 fragTangent;
 in vec3 fragBinormal;
 
-// Material parameters
+// Input material values
 uniform MaterialProperty albedo;
 uniform MaterialProperty normals;
 uniform MaterialProperty metallic;
@@ -36,18 +36,20 @@ uniform MaterialProperty roughness;
 uniform MaterialProperty ao;
 uniform MaterialProperty height;
 
-// Lighting parameters
+// Input lighting values
 uniform Light lights[MAX_LIGHTS];
 
-// Environment parameters
+// Input uniform values
 uniform samplerCube irradianceMap;
 uniform samplerCube prefilterMap;
 uniform sampler2D brdfLUT;
 
-// Other parameters
+// Other uniform values
 uniform int renderMode;
 uniform vec3 viewPos;
 vec2 texCoord;
+
+// Constant values
 const float PI = 3.14159265359;
 
 // Output fragment color

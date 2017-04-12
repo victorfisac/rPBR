@@ -3,7 +3,7 @@
 // Input vertex attributes (from vertex shader)
 in vec3 fragPos;
 
-// Environment parameters
+// Input uniform values
 uniform samplerCube environmentMap;
 
 // Output fragment color

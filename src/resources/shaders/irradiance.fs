@@ -3,10 +3,10 @@
 // Input vertex attributes (from vertex shader)
 in vec3 fragPos;
 
-// Environment parameters
+// Input uniform values
 uniform samplerCube environmentMap;
 
-// Other parameters
+// Constant values
 const float PI = 3.14159265359f;
 
 // Output fragment color

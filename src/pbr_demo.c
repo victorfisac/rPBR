@@ -18,13 +18,16 @@
 // Defines
 //----------------------------------------------------------------------------------
 #define         PATH_MODEL                  "resources/models/cerberus.obj"
-#define         PATH_HDR                    "resources/textures/hdr/apartament.hdr"
+#define         PATH_TEXTURES_HDR           "resources/textures/hdr/apartament.hdr"
 #define         PATH_TEXTURES_ALBEDO        "resources/textures/cerberus/cerberus_albedo.png"
 #define         PATH_TEXTURES_NORMALS       "resources/textures/cerberus/cerberus_normals.png"
 #define         PATH_TEXTURES_METALLIC      "resources/textures/cerberus/cerberus_metallic.png"
 #define         PATH_TEXTURES_ROUGHNESS     "resources/textures/cerberus/cerberus_roughness.png"
 #define         PATH_TEXTURES_AO            "resources/textures/cerberus/cerberus_ao.png"
-// #define         PATH_TEXTURES_HEIGHT        "resources/textures/cerberus/cerberus_height.png"
+// #define      PATH_TEXTURES_HEIGHT        "resources/textures/cerberus/cerberus_height.png"
+#define         PATH_SHADERS_POSTFX_VS      "resources/shaders/postfx.vs"
+#define         PATH_SHADERS_FXAA_FS        "resources/shaders/fxaa.fs"
+#define         PATH_SHADERS_BLOOM_FS       "resources/shaders/bloom.fs"
 
 #define         MAX_LIGHTS                  4               // Max lights supported by shader
 #define         MAX_ROWS                    1               // Rows to render models
@@ -70,11 +73,11 @@ int main()
     SetCameraMode(camera, CAMERA_FREE);
 
     // Enable Multi Sampling Anti Aliasing 4x (if available)
-    SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
+    SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT);
     InitWindow(screenWidth, screenHeight, "rPBR - Physically Based Rendering");
 
     // Define environment attributes
-    Environment environment = LoadEnvironment(PATH_HDR, CUBEMAP_SIZE, IRRADIANCE_SIZE, PREFILTERED_SIZE, BRDF_SIZE);
+    Environment environment = LoadEnvironment(PATH_TEXTURES_HDR, CUBEMAP_SIZE, IRRADIANCE_SIZE, PREFILTERED_SIZE, BRDF_SIZE);
 
     // Load external resources
     Model model = LoadModel(PATH_MODEL);
@@ -113,6 +116,17 @@ int main()
     lights[lightsCount] = CreateLight(LIGHT_POINT, (Vector3){ 1.0f, 1.0f, -1.0f }, (Vector3){ 0, 0, 0 }, (Color){ 0, 255, 0, 255 }, model.material.shader, &lightsCount);
     lights[lightsCount] = CreateLight(LIGHT_POINT, (Vector3){ -1.0f, 1.0f, 1.0f }, (Vector3){ 0, 0, 0 }, (Color){ 0, 0, 255, 255 }, model.material.shader, &lightsCount);
     lights[lightsCount] = CreateLight(LIGHT_DIRECTIONAL, (Vector3){ 3.0f, 2.0f, 3.0f }, (Vector3){ 0, 0, 0 }, (Color){ 255, 0, 255, 255 }, model.material.shader, &lightsCount);
+
+    // Create a render texture for antialiasing post-processing effect and initialize FXAA shader
+    RenderTexture2D fxaaTarget = LoadRenderTexture(screenWidth, screenHeight);
+    Shader fxaaShader = LoadShader(PATH_SHADERS_POSTFX_VS, PATH_SHADERS_FXAA_FS);
+    float resolution[2] = { (float)screenWidth, (float)screenHeight };
+    SetShaderValue(fxaaShader, GetShaderLocation(fxaaShader, "resolution"), resolution, 2);
+    
+    // Create a render texture for antialiasing post-processing effect and initialize Bloom shader
+    RenderTexture2D bloomTarget = LoadRenderTexture(screenWidth, screenHeight);
+    Shader bloomShader = LoadShader(PATH_SHADERS_POSTFX_VS, PATH_SHADERS_BLOOM_FS);
+    SetShaderValue(bloomShader, GetShaderLocation(bloomShader, "resolution"), resolution, 2);
 
     // Set our game to run at 60 frames-per-second
     SetTargetFPS(60);
@@ -185,21 +199,44 @@ int main()
 
             ClearBackground(DARKGRAY);
 
-            Begin3dMode(camera);
+            // Render to texture for antialiasing post-processing
+            BeginTextureMode(bloomTarget);
 
-                // Draw ground grid
-                if (drawGrid) DrawGrid(10, 1.0f);
+                Begin3dMode(camera);
 
-                // Draw loaded model using physically based rendering
-                DrawModelPBR(model, matPBR, (Vector3){ 0, 0, 0 }, rotationAxis, rotationAngle, (Vector3){ MODEL_SCALE, MODEL_SCALE, MODEL_SCALE });
+                    // Draw ground grid
+                    if (drawGrid) DrawGrid(10, 1.0f);
 
-                // Draw light gizmos
-                if (drawLights) for (unsigned int i = 0; (i < MAX_LIGHTS); i++) DrawLight(lights[i]);
+                    // Draw loaded model using physically based rendering
+                    DrawModelPBR(model, matPBR, (Vector3){ 0, 0, 0 }, rotationAxis, rotationAngle, (Vector3){ MODEL_SCALE, MODEL_SCALE, MODEL_SCALE });
 
-                // Render skybox (render as last to prevent overdraw)
-                if (drawSkybox) DrawSkybox(environment, camera);
+                    // Draw light gizmos
+                    if (drawLights) for (unsigned int i = 0; (i < MAX_LIGHTS); i++) DrawLight(lights[i]);
 
-            End3dMode();
+                    // Render skybox (render as last to prevent overdraw)
+                    if (drawSkybox) DrawSkybox(environment, camera);
+
+                End3dMode();
+
+            EndTextureMode();
+
+            // Render antialiased texture to other texture for bloom post-processing
+            BeginTextureMode(fxaaTarget);
+
+                BeginShaderMode(bloomShader);
+
+                    DrawTextureRec(bloomTarget.texture, (Rectangle){ 0, 0, bloomTarget.texture.width, -bloomTarget.texture.height }, (Vector2){ 0, 0 }, WHITE);
+
+                EndShaderMode();
+
+            EndTextureMode();
+            
+            // Draw antialiasing and bloom post-processing quad
+            BeginShaderMode(fxaaShader);
+
+                DrawTextureRec(fxaaTarget.texture, (Rectangle){ 0, 0, fxaaTarget.texture.width, -fxaaTarget.texture.height }, (Vector2){ 0, 0 }, WHITE);
+
+            EndShaderMode();
 
             DrawFPS(10, 10);
 
@@ -217,6 +254,12 @@ int main()
 
     // Unload environment loaded shaders and dynamic textures
     UnloadEnvironment(environment);
+    
+    // Unload other resources
+    UnloadShader(fxaaShader);
+    UnloadShader(bloomShader);
+    UnloadRenderTexture(fxaaTarget);
+    UnloadRenderTexture(bloomTarget);
 
     // Close window and OpenGL context
     CloseWindow();
