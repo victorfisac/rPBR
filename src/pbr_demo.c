@@ -18,7 +18,7 @@
 // Defines
 //----------------------------------------------------------------------------------
 #define         PATH_MODEL                  "resources/models/cerberus.obj"
-#define         PATH_TEXTURES_HDR           "resources/textures/hdr/apartament.hdr"
+#define         PATH_TEXTURES_HDR           "resources/textures/hdr/pinetree.hdr"
 #define         PATH_TEXTURES_ALBEDO        "resources/textures/cerberus/cerberus_albedo.png"
 #define         PATH_TEXTURES_NORMALS       "resources/textures/cerberus/cerberus_normals.png"
 #define         PATH_TEXTURES_METALLIC      "resources/textures/cerberus/cerberus_metallic.png"
@@ -26,9 +26,7 @@
 #define         PATH_TEXTURES_AO            "resources/textures/cerberus/cerberus_ao.png"
 // #define      PATH_TEXTURES_HEIGHT        "resources/textures/cerberus/cerberus_height.png"
 #define         PATH_SHADERS_POSTFX_VS      "resources/shaders/postfx.vs"
-#define         PATH_SHADERS_FXAA_FS        "resources/shaders/fxaa.fs"
-#define         PATH_SHADERS_BLOOM_FS       "resources/shaders/bloom.fs"
-#define         PATH_SHADERS_VIGNETTE_FS    "resources/shaders/vignette.fs"
+#define         PATH_SHADERS_POSTFX_FS      "resources/shaders/postfx.fs"
 
 #define         MAX_LIGHTS                  4               // Max lights supported by shader
 #define         MAX_ROWS                    1               // Rows to render models
@@ -66,6 +64,9 @@ int main()
     bool drawGrid = true;
     bool drawLights = true;
     bool drawSkybox = true;
+    bool enabledFxaa = true;
+    bool enabledBloom = true;
+    bool enabledVignette = true;
 
     // Define the camera to look into our 3d world, its mode and model drawing position
     float rotationAngle = 0.0f;
@@ -119,19 +120,16 @@ int main()
     lights[lightsCount] = CreateLight(LIGHT_DIRECTIONAL, (Vector3){ 3.0f, 2.0f, 3.0f }, (Vector3){ 0, 0, 0 }, (Color){ 255, 0, 255, 255 }, model.material.shader, &lightsCount);
 
     // Create a render texture for antialiasing post-processing effect and initialize Bloom shader
-    RenderTexture2D bloomTarget = LoadRenderTexture(screenWidth, screenHeight);
-    Shader bloomShader = LoadShader(PATH_SHADERS_POSTFX_VS, PATH_SHADERS_BLOOM_FS);
+    RenderTexture2D fxTarget = LoadRenderTexture(screenWidth, screenHeight);
+    Shader fxShader = LoadShader(PATH_SHADERS_POSTFX_VS, PATH_SHADERS_POSTFX_FS);
+
+    // Get post-processing shader locations
+    int enabledFxaaLoc = GetShaderLocation(fxShader, "enabledFxaa");
+    int enabledBloomLoc = GetShaderLocation(fxShader, "enabledBloom");
+    int enabledVignetteLoc = GetShaderLocation(fxShader, "enabledVignette");
+
     float resolution[2] = { (float)screenWidth, (float)screenHeight };
-    SetShaderValue(bloomShader, GetShaderLocation(bloomShader, "resolution"), resolution, 2);
-
-    // Create a render texture for antialiasing post-processing effect and initialize Bloom shader
-    RenderTexture2D vignetteTarget = LoadRenderTexture(screenWidth, screenHeight);
-    Shader vignetteShader = LoadShader(PATH_SHADERS_POSTFX_VS, PATH_SHADERS_VIGNETTE_FS);
-
-    // Create a render texture for antialiasing post-processing effect and initialize FXAA shader
-    RenderTexture2D fxaaTarget = LoadRenderTexture(screenWidth, screenHeight);
-    Shader fxaaShader = LoadShader(PATH_SHADERS_POSTFX_VS, PATH_SHADERS_FXAA_FS);
-    SetShaderValue(fxaaShader, GetShaderLocation(fxaaShader, "resolution"), resolution, 2);
+    SetShaderValue(fxShader, GetShaderLocation(fxShader, "resolution"), resolution, 2);
 
     // Set our game to run at 60 frames-per-second
     SetTargetFPS(60);
@@ -148,7 +146,7 @@ int main()
         // Check for capture screenshot input
         if (IsKeyPressed(KEY_P)) CaptureScreenshot(screenWidth, screenHeight);
 
-        // Check for scene reset input
+        // Check for scene camera reset input
         if (IsKeyPressed(KEY_R))
         {
             rotationAngle = 0.0f;
@@ -186,8 +184,14 @@ int main()
         else if (IsKeyPressed(KEY_ZERO)) mode = REFLECTION;
 
         // Send current mode to shader
-        int shaderMode[1] = { (int)mode };
+        int shaderMode[1] = { mode };
         SetShaderValuei(model.material.shader, shaderModeLoc, shaderMode, 1);
+        shaderMode[0] = enabledFxaa;
+        SetShaderValuei(fxShader, enabledFxaaLoc, shaderMode, 1);
+        shaderMode[0] = enabledBloom;
+        SetShaderValuei(fxShader, enabledBloomLoc, shaderMode, 1);
+        shaderMode[0] = enabledVignette;
+        SetShaderValuei(fxShader, enabledVignetteLoc, shaderMode, 1);
 
         // Update current light position
         for (int i = 0; i < MAX_LIGHTS; i++) UpdateLightValues(environment.pbrShader, lights[i]);
@@ -205,7 +209,7 @@ int main()
             ClearBackground(DARKGRAY);
 
             // Render to texture for antialiasing post-processing
-            BeginTextureMode(bloomTarget);
+            BeginTextureMode(fxTarget);
 
                 Begin3dMode(camera);
 
@@ -225,32 +229,9 @@ int main()
 
             EndTextureMode();
 
-            // Render antialiased texture to other texture for bloom post-processing
-            BeginTextureMode(vignetteTarget);
+            BeginShaderMode(fxShader);
 
-                BeginShaderMode(bloomShader);
-
-                    DrawTextureRec(bloomTarget.texture, (Rectangle){ 0, 0, bloomTarget.texture.width, -bloomTarget.texture.height }, (Vector2){ 0, 0 }, WHITE);
-
-                EndShaderMode();
-
-            EndTextureMode();
-
-            // Render antialiased texture to other texture for bloom post-processing
-            BeginTextureMode(fxaaTarget);
-
-                BeginShaderMode(vignetteShader);
-
-                    DrawTextureRec(vignetteTarget.texture, (Rectangle){ 0, 0, vignetteTarget.texture.width, -vignetteTarget.texture.height }, (Vector2){ 0, 0 }, WHITE);
-
-                EndShaderMode();
-
-            EndTextureMode();
-
-            // Draw antialiasing and bloom post-processing quad
-            BeginShaderMode(fxaaShader);
-
-                DrawTextureRec(fxaaTarget.texture, (Rectangle){ 0, 0, fxaaTarget.texture.width, -fxaaTarget.texture.height }, (Vector2){ 0, 0 }, WHITE);
+                DrawTextureRec(fxTarget.texture, (Rectangle){ 0, 0, fxTarget.texture.width, -fxTarget.texture.height }, (Vector2){ 0, 0 }, WHITE);
 
             EndShaderMode();
 
@@ -272,12 +253,8 @@ int main()
     UnloadEnvironment(environment);
     
     // Unload other resources
-    UnloadShader(bloomShader);
-    UnloadShader(vignetteShader);
-    UnloadShader(fxaaShader);
-    UnloadRenderTexture(bloomTarget);
-    UnloadRenderTexture(vignetteTarget);
-    UnloadRenderTexture(fxaaTarget);
+    UnloadRenderTexture(fxTarget);
+    UnloadShader(fxShader);
 
     // Close window and OpenGL context
     CloseWindow();
