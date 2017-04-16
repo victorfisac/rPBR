@@ -15,8 +15,8 @@ uniform int enabledBloom;
 uniform int enabledVignette;
 
 // Constant values
-const float samples = 16.0;             // pixels per axis; higher = bigger glow, worse performance
-const float quality = 0.35;   	        // lower = smaller glow, better quality
+const float samples = 32.0;             // pixels per axis; higher = bigger glow, worse performance
+const float quality = 0.25;   	        // lower = smaller glow, better quality
 const float radius = 0.75;              // Radius of our vignette, where 0.5 results in a circle fitting the screen
 const float softness = 0.9;             // Softness of our vignette, between 0.0 and 1.0
 const float oppacity = 0.5;             // Opacity to apply vignette to source image

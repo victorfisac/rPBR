@@ -12,7 +12,6 @@
 #include "raylib.h"                         // Required for raylib framework
 #include "pbrmath.h"                        // Required for matrix and vectors math
 #include "pbrcore.h"                        // Required for lighting, environment and drawing functions
-#include "pbrutils.h"                       // Required for utilities
 
 //----------------------------------------------------------------------------------
 // Defines
@@ -144,7 +143,7 @@ int main()
         rotationAngle += ROTATION_SPEED;
 
         // Check for capture screenshot input
-        if (IsKeyPressed(KEY_P)) CaptureScreenshot(screenWidth, screenHeight);
+        if (IsKeyPressed(KEY_P)) TakeScreenshot();
 
         // Check for scene camera reset input
         if (IsKeyPressed(KEY_R))
@@ -251,7 +250,7 @@ int main()
 
     // Unload environment loaded shaders and dynamic textures
     UnloadEnvironment(environment);
-    
+
     // Unload other resources
     UnloadRenderTexture(fxTarget);
     UnloadShader(fxShader);
