@@ -10,7 +10,7 @@
 // Includes
 //----------------------------------------------------------------------------------
 #include "raylib.h"                         // Required for raylib framework
-#include "pbrmath.h"                        // Required for matrix and vectors math
+#include "raymath.h"                        // Required for matrix, vectors and other math functions
 #include "pbrcore.h"                        // Required for lighting, environment and drawing functions
 
 //----------------------------------------------------------------------------------
