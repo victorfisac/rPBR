@@ -127,6 +127,7 @@ int main()
     int enabledBloomLoc = GetShaderLocation(fxShader, "enabledBloom");
     int enabledVignetteLoc = GetShaderLocation(fxShader, "enabledVignette");
 
+    // Send resolution values to post-processing shader
     float resolution[2] = { (float)screenWidth, (float)screenHeight };
     SetShaderValue(fxShader, GetShaderLocation(fxShader, "resolution"), resolution, 2);
 
@@ -182,7 +183,7 @@ int main()
         else if (IsKeyPressed(KEY_NINE)) mode = IRRADIANCE;
         else if (IsKeyPressed(KEY_ZERO)) mode = REFLECTION;
 
-        // Send current mode to shader
+        // Send current mode to PBR shader and enabled screen effects states to post-processing shader
         int shaderMode[1] = { mode };
         SetShaderValuei(model.material.shader, shaderModeLoc, shaderMode, 1);
         shaderMode[0] = enabledFxaa;
@@ -192,10 +193,10 @@ int main()
         shaderMode[0] = enabledVignette;
         SetShaderValuei(fxShader, enabledVignetteLoc, shaderMode, 1);
 
-        // Update current light position
+        // Update current light position to PBR shader
         for (int i = 0; i < MAX_LIGHTS; i++) UpdateLightValues(environment.pbrShader, lights[i]);
 
-        // Update camera values and send them to shader
+        // Update camera values and send them to all required shaders
         UpdateCamera(&camera);
         float cameraPos[3] = { camera.position.x, camera.position.y, camera.position.z };
         SetShaderValue(environment.pbrShader, environment.pbrViewLoc, cameraPos, 3);
