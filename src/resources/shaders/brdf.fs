@@ -1,3 +1,11 @@
+/*******************************************************************************************
+*
+*   rPBR [shader] - Bidirectional reflectance distribution function fragment shader
+*
+*   Copyright (c) 2017 Victor Fisac
+*
+**********************************************************************************************/
+
 #version 330
 #define         MAX_SAMPLES        1024u
 

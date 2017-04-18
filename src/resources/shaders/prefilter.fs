@@ -1,3 +1,11 @@
+/*******************************************************************************************
+*
+*   rPBR [shader] - Prefiltered environment for reflections fragment shader
+*
+*   Copyright (c) 2017 Victor Fisac
+*
+**********************************************************************************************/
+
 #version 330
 #define     MAX_SAMPLES             1024u
 #define     CUBEMAP_RESOLUTION      1024.0

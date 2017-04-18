@@ -1,3 +1,11 @@
+/*******************************************************************************************
+*
+*   rPBR [shader] - Post-processing effects fragment shader
+*
+*   Copyright (c) 2017 Victor Fisac
+*
+**********************************************************************************************/
+
 #version 330
 
 #define     FXAA_REDUCE_MIN     (1.0/128.0)
@@ -19,7 +27,7 @@ const float samples = 32.0;             // pixels per axis; higher = bigger glow
 const float quality = 0.25;   	        // lower = smaller glow, better quality
 const float radius = 0.75;              // Radius of our vignette, where 0.5 results in a circle fitting the screen
 const float softness = 0.9;             // Softness of our vignette, between 0.0 and 1.0
-const float oppacity = 0.5;             // Opacity to apply vignette to source image
+const float oppacity = 0.7;             // Opacity to apply vignette to source image
 
 // Output fragment color
 out vec4 finalColor;
