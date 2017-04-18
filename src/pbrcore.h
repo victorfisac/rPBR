@@ -1,10 +1,49 @@
-/*******************************************************************************************
+/***********************************************************************************
 *
-*   rPBR [core] - Physically Based Rendering 3D drawing functions for raylib
+*   rPBR 1.0 [core] - Physically Based Rendering 3D drawing functions for raylib   
+*
+*   FEATURES:
+*       - Phyiscally based rendering for any 3D model.
+*       - Metalness/Roughness PBR workflow.
+*       - Split-Sum Approximation for specular reflection calculations.
+*       - Support for normal mapping and parallax mapping.
+*       - Simple and easy-to-use implementation code.
+*       - Multi-material scene supported.
+*       - Point and directional lights supported.
+*       - Internal shader values and locations points handled automatically.
+*
+*   NOTES:
+*       Physically based rendering shaders paths are set up by default
+*       Remember to call UnloadMaterialPBR and UnloadEnvironment to deallocate required memory and unload textures
+*       Physically based rendering requires OpenGL 3.3 or ES2
+*
+*   DEPENDENCIES:
+*       stb_image (Sean Barret) for images loading (JPEG, PNG, BMP, HDR)
+*       GLAD for OpenGL extensions loading (3.3 Core profile)
+*
+*   LICENSE: zlib/libpng
+*
+*   rPBR is licensed under an unmodified zlib/libpng license, which is an OSI-certified,
+*   BSD-like license that allows static linking with closed source software:
 *
 *   Copyright (c) 2017 Victor Fisac
 *
-********************************************************************************************/
+*   This software is provided "as-is", without any express or implied warranty. In no event
+*   will the authors be held liable for any damages arising from the use of this software.
+*
+*   Permission is granted to anyone to use this software for any purpose, including commercial
+*   applications, and to alter it and redistribute it freely, subject to the following restrictions:
+*
+*     1. The origin of this software must not be misrepresented; you must not claim that you
+*     wrote the original software. If you use this software in a product, an acknowledgment
+*     in the product documentation would be appreciated but is not required.
+*
+*     2. Altered source versions must be plainly marked as such, and must not be misrepresented
+*     as being the original software.
+*
+*     3. This notice may not be removed or altered from any source distribution.
+*
+***********************************************************************************/
 
 //----------------------------------------------------------------------------------
 // Includes
@@ -17,8 +56,30 @@
 #include "external/glad.h"                  // Required for OpenGL API
 
 //----------------------------------------------------------------------------------
+// Defines
+//----------------------------------------------------------------------------------
+#define         PATH_PBR_VS                 "resources/shaders/pbr.vs"
+#define         PATH_PBR_FS                 "resources/shaders/pbr.fs"
+#define         PATH_CUBE_VS                "resources/shaders/cubemap.vs"
+#define         PATH_CUBE_FS                "resources/shaders/cubemap.fs"
+#define         PATH_SKYBOX_VS              "resources/shaders/skybox.vs"
+#define         PATH_SKYBOX_FS              "resources/shaders/skybox.fs"
+#define         PATH_IRRADIANCE_FS          "resources/shaders/irradiance.fs"
+#define         PATH_PREFILTER_FS           "resources/shaders/prefilter.fs"
+#define         PATH_BRDF_VS                "resources/shaders/brdf.vs"
+#define         PATH_BRDF_FS                "resources/shaders/brdf.fs"
+
+#define         LIGHT_RADIUS                0.05f
+
+//----------------------------------------------------------------------------------
 // Structs and enums
 //----------------------------------------------------------------------------------
+typedef enum {
+    BACKGROUND_SKY,
+    BACKGROUND_BLURSKY,
+    BACKGROUND_AMBIENT
+} BackgroundMode;
+
 typedef enum {
     LIGHT_DIRECTIONAL,
     LIGHT_POINT
@@ -100,7 +161,7 @@ void UpdateLightValues(Shader shader, Light light);                             
 
 void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotationAxis, float rotationAngle, Vector3 scale);    // Draw a model using physically based rendering
 void DrawLight(Light light);                                                                                                    // Draw a light gizmo based on light attributes                  
-void DrawSkybox(Environment environment, Camera camera);                                                                        // Draw a cube skybox using environment cube map
+void DrawSkybox(Environment environment, int mode, Camera camera);                                                              // Draw a cube skybox using environment cube map
 void RenderCube(void);                                                                                                          // Renders a 1x1 3D cube in NDC
 void RenderQuad(void);                                                                                                          // Renders a 1x1 XY quad in NDC
 
@@ -217,19 +278,9 @@ Light CreateLight(int type, Vector3 pos, Vector3 targ, Color color, Shader shade
 // Load an environment cubemap, irradiance, prefilter and PBR scene
 Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianceSize, int prefilterSize, int brdfSize)
 {
-    #define         PATH_PBR_VS                 "resources/shaders/pbr.vs"
-    #define         PATH_PBR_FS                 "resources/shaders/pbr.fs"
-    #define         PATH_CUBE_VS                "resources/shaders/cubemap.vs"
-    #define         PATH_CUBE_FS                "resources/shaders/cubemap.fs"
-    #define         PATH_SKYBOX_VS              "resources/shaders/skybox.vs"
-    #define         PATH_SKYBOX_FS              "resources/shaders/skybox.fs"
-    #define         PATH_IRRADIANCE_FS          "resources/shaders/irradiance.fs"
-    #define         PATH_PREFILTER_FS           "resources/shaders/prefilter.fs"
-    #define         PATH_BRDF_VS                "resources/shaders/brdf.vs"
-    #define         PATH_BRDF_FS                "resources/shaders/brdf.fs"
-
     Environment env = { 0 };
 
+    // Load environment required shaders
     env.pbrShader = LoadShader(PATH_PBR_VS, PATH_PBR_FS);
     env.cubeShader = LoadShader(PATH_CUBE_VS, PATH_CUBE_FS);
     env.skyShader = LoadShader(PATH_SKYBOX_VS, PATH_SKYBOX_FS);
@@ -686,26 +737,33 @@ void DrawLight(Light light)
     {
         case LIGHT_DIRECTIONAL:
         {
-            DrawSphere(light.position, 0.015f, (light.enabled ? light.color : GRAY));
-            DrawSphere(light.target, 0.015f, (light.enabled ? light.color : GRAY));
+            DrawSphere(light.position, LIGHT_RADIUS/2, (light.enabled ? light.color : GRAY));
+            DrawSphere(light.target, LIGHT_RADIUS/2, (light.enabled ? light.color : GRAY));
             DrawLine3D(light.position, light.target, (light.enabled ? light.color : DARKGRAY));
         } break;
-        case LIGHT_POINT: DrawSphere(light.position, 0.025f, (light.enabled ? light.color : GRAY));
+        case LIGHT_POINT: DrawSphere(light.position, LIGHT_RADIUS, (light.enabled ? light.color : GRAY));
         default: break;
     }
 }
 
 // Draw a cube skybox using environment cube map
-void DrawSkybox(Environment environment, Camera camera)
+void DrawSkybox(Environment environment, int mode, Camera camera)
 {
     // Calculate view matrix for custom shaders
     Matrix view = MatrixLookAt(camera.position, camera.target, camera.up);
 
     // Send to shader view matrix and bind cubemap texture
     glUseProgram(environment.skyShader.id);
+    glUniform1i(GetShaderLocation(environment.skyShader, "skyMode"), mode);
     SetShaderValueMatrix(environment.skyShader, environment.skyViewLoc, view);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, environment.cubemapId);
+    switch (mode)
+    {
+        case BACKGROUND_SKY: glBindTexture(GL_TEXTURE_CUBE_MAP, environment.cubemapId); break;
+        case BACKGROUND_BLURSKY: glBindTexture(GL_TEXTURE_CUBE_MAP, environment.cubemapId); break;
+        case BACKGROUND_AMBIENT: glBindTexture(GL_TEXTURE_CUBE_MAP, environment.irradianceId); break;
+        default: break;
+    }
 
     // Render skybox cube
     RenderCube();

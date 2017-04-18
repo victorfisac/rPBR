@@ -1,8 +1,35 @@
 /***********************************************************************************
 *
-*   rPBR - Physically Based Rendering for raylib
+*   rPBR 1.0 - Physically based rendering viewer for raylib
+*
+*   FEATURES:
+*       - Load OBJ models and texture images in real-time by drag and drop.
+*       - Use right mouse button to rotate lighting.
+*       - Use middle mouse button to rotate and pan camera.
+*       - Use interface to adjust lighting, material and screen parameters (space - display/hide interface).
+*       - Press F12 or use Screenshot button to capture a screenshot and save it as PNG file.
+*
+*   LICENSE: zlib/libpng
+*
+*   rPBR is licensed under an unmodified zlib/libpng license, which is an OSI-certified,
+*   BSD-like license that allows static linking with closed source software:
 *
 *   Copyright (c) 2017 Victor Fisac
+*
+*   This software is provided "as-is", without any express or implied warranty. In no event
+*   will the authors be held liable for any damages arising from the use of this software.
+*
+*   Permission is granted to anyone to use this software for any purpose, including commercial
+*   applications, and to alter it and redistribute it freely, subject to the following restrictions:
+*
+*     1. The origin of this software must not be misrepresented; you must not claim that you
+*     wrote the original software. If you use this software in a product, an acknowledgment
+*     in the product documentation would be appreciated but is not required.
+*
+*     2. Altered source versions must be plainly marked as such, and must not be misrepresented
+*     as being the original software.
+*
+*     3. This notice may not be removed or altered from any source distribution.
 *
 ***********************************************************************************/
 
@@ -30,9 +57,12 @@
 #define         MAX_LIGHTS                  4               // Max lights supported by shader
 #define         MAX_ROWS                    1               // Rows to render models
 #define         MAX_COLUMNS                 1               // Columns to render models
-#define         MODEL_SCALE                 1.5f            // Model scale transformation for rendering
+#define         MODEL_SCALE                 1.75f           // Model scale transformation for rendering
 #define         MODEL_OFFSET                0.45f           // Distance between models for rendering
 #define         ROTATION_SPEED              0.0f            // Models rotation speed
+#define         LIGHT_SPEED                 0.1f            // Light rotation input speed
+#define         LIGHT_DISTANCE              3.5f            // Light distance from center of world
+#define         LIGHT_HEIGHT                1.0f            // Light height from center of world
 
 #define         CUBEMAP_SIZE                1024            // Cubemap texture size
 #define         IRRADIANCE_SIZE             32              // Irradiance map from cubemap texture size
@@ -58,24 +88,33 @@ int main()
     //------------------------------------------------------------------------------
     int screenWidth = 1280;
     int screenHeight = 720;
-    int selectedLight = 0;
+
+    // Enable Multi Sampling Anti Aliasing 4x (if available)
+    SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT);
+    InitWindow(screenWidth, screenHeight, "rPBR - Physically Based Rendering Viewer");
+
+    // Define render settings states
     RenderMode mode = DEFAULT;
-    bool drawGrid = true;
+    BackgroundMode backMode = BACKGROUND_AMBIENT;
+    bool drawGrid = false;
     bool drawLights = true;
     bool drawSkybox = true;
+
+    // Define post-processing effects enabled states
     bool enabledFxaa = true;
     bool enabledBloom = true;
     bool enabledVignette = true;
 
+    // Initialize lighting rotation
+    int mousePosX = 0;
+    int lastMousePosX = 0;
+    float lightAngle = 0.0f;
+
     // Define the camera to look into our 3d world, its mode and model drawing position
     float rotationAngle = 0.0f;
     Vector3 rotationAxis = { 0.0f, 1.0f, 0.0f };
-    Camera camera = {{ 2.75f, 2.55f, 2.75f }, { 1.0f, 1.05f, 1.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f };
+    Camera camera = {{ 3.5f, 3.0f, 3.5f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f };
     SetCameraMode(camera, CAMERA_FREE);
-
-    // Enable Multi Sampling Anti Aliasing 4x (if available)
-    SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT);
-    InitWindow(screenWidth, screenHeight, "rPBR - Physically Based Rendering");
 
     // Define environment attributes
     Environment environment = LoadEnvironment(PATH_TEXTURES_HDR, CUBEMAP_SIZE, IRRADIANCE_SIZE, PREFILTERED_SIZE, BRDF_SIZE);
@@ -85,21 +124,27 @@ int main()
     MaterialPBR matPBR = SetupMaterialPBR(environment, (Color){ 255 }, 255, 255);
 #if defined(PATH_TEXTURES_ALBEDO)
     SetMaterialTexturePBR(&matPBR, PBR_ALBEDO, LoadTexture(PATH_TEXTURES_ALBEDO));
+    SetTextureFilter(matPBR.albedoTex, FILTER_BILINEAR);
 #endif
 #if defined(PATH_TEXTURES_NORMALS)
     SetMaterialTexturePBR(&matPBR, PBR_NORMALS, LoadTexture(PATH_TEXTURES_NORMALS));
+    SetTextureFilter(matPBR.normalsTex, FILTER_BILINEAR);
 #endif
 #if defined(PATH_TEXTURES_METALLIC)
     SetMaterialTexturePBR(&matPBR, PBR_METALLIC, LoadTexture(PATH_TEXTURES_METALLIC));
+    SetTextureFilter(matPBR.metallicTex, FILTER_BILINEAR);
 #endif
 #if defined(PATH_TEXTURES_ROUGHNESS)
     SetMaterialTexturePBR(&matPBR, PBR_ROUGHNESS, LoadTexture(PATH_TEXTURES_ROUGHNESS));
+    SetTextureFilter(matPBR.roughnessTex, FILTER_BILINEAR);
 #endif
 #if defined(PATH_TEXTURES_AO)
     SetMaterialTexturePBR(&matPBR, PBR_AO, LoadTexture(PATH_TEXTURES_AO));
+    SetTextureFilter(matPBR.aoTex, FILTER_BILINEAR);
 #endif
 #if defined(PATH_TEXTURES_HEIGHT)
     SetMaterialTexturePBR(&matPBR, PBR_HEIGHT, LoadTexture(PATH_TEXTURES_HEIGHT));
+    SetTextureFilter(matPBR.heightTex, FILTER_BILINEAR);
 #endif
 
     // Set up materials and lighting
@@ -113,10 +158,10 @@ int main()
     // Define lights attributes
     int lightsCount = 0;
     Light lights[MAX_LIGHTS] = { 0 };
-    lights[lightsCount] = CreateLight(LIGHT_POINT, (Vector3){ -1.0f, 1.0f, -1.0f }, (Vector3){ 0, 0, 0 }, (Color){ 255, 0, 0, 255 }, model.material.shader, &lightsCount);
-    lights[lightsCount] = CreateLight(LIGHT_POINT, (Vector3){ 1.0f, 1.0f, -1.0f }, (Vector3){ 0, 0, 0 }, (Color){ 0, 255, 0, 255 }, model.material.shader, &lightsCount);
-    lights[lightsCount] = CreateLight(LIGHT_POINT, (Vector3){ -1.0f, 1.0f, 1.0f }, (Vector3){ 0, 0, 0 }, (Color){ 0, 0, 255, 255 }, model.material.shader, &lightsCount);
-    lights[lightsCount] = CreateLight(LIGHT_DIRECTIONAL, (Vector3){ 3.0f, 2.0f, 3.0f }, (Vector3){ 0, 0, 0 }, (Color){ 255, 0, 255, 255 }, model.material.shader, &lightsCount);
+    lights[lightsCount] = CreateLight(LIGHT_POINT, (Vector3){ LIGHT_DISTANCE, LIGHT_HEIGHT, 0.0f }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 255, 0, 0, 255 }, model.material.shader, &lightsCount);
+    lights[lightsCount] = CreateLight(LIGHT_POINT, (Vector3){ 0.0f, LIGHT_HEIGHT, LIGHT_DISTANCE }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 0, 255, 0, 255 }, model.material.shader, &lightsCount);
+    lights[lightsCount] = CreateLight(LIGHT_POINT, (Vector3){ -LIGHT_DISTANCE, LIGHT_HEIGHT, 0.0f }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 0, 0, 255, 255 }, model.material.shader, &lightsCount);
+    lights[lightsCount] = CreateLight(LIGHT_DIRECTIONAL, (Vector3){ 0, LIGHT_HEIGHT*2.0f, -LIGHT_DISTANCE }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 255, 0, 255, 255 }, model.material.shader, &lightsCount);
 
     // Create a render texture for antialiasing post-processing effect and initialize Bloom shader
     RenderTexture2D fxTarget = LoadRenderTexture(screenWidth, screenHeight);
@@ -130,6 +175,7 @@ int main()
     // Send resolution values to post-processing shader
     float resolution[2] = { (float)screenWidth, (float)screenHeight };
     SetShaderValue(fxShader, GetShaderLocation(fxShader, "resolution"), resolution, 2);
+    SetShaderValue(environment.skyShader, GetShaderLocation(environment.skyShader, "resolution"), resolution, 2);
 
     // Set our game to run at 60 frames-per-second
     SetTargetFPS(60);
@@ -143,6 +189,60 @@ int main()
         // Update current rotation angle
         rotationAngle += ROTATION_SPEED;
 
+        // Check if a file is dropped
+        if (IsFileDropped())
+        {
+            int fileCount = 0;
+            char **droppedFiles = GetDroppedFiles(&fileCount);
+
+            // Check extensions
+            if (IsFileExtension(droppedFiles[0], ".hdr"))
+            {
+                UnloadEnvironment(environment);
+                environment = LoadEnvironment(droppedFiles[0], CUBEMAP_SIZE, IRRADIANCE_SIZE, PREFILTERED_SIZE, BRDF_SIZE);
+                SetShaderValue(environment.skyShader, GetShaderLocation(environment.skyShader, "resolution"), resolution, 2);
+                UnloadMaterialPBR(matPBR);
+                matPBR = SetupMaterialPBR(environment, (Color){ 255 }, 255, 255);
+            #if defined(PATH_TEXTURES_ALBEDO)
+                SetMaterialTexturePBR(&matPBR, PBR_ALBEDO, LoadTexture(PATH_TEXTURES_ALBEDO));
+                SetTextureFilter(matPBR.albedoTex, FILTER_BILINEAR);
+            #endif
+            #if defined(PATH_TEXTURES_NORMALS)
+                SetMaterialTexturePBR(&matPBR, PBR_NORMALS, LoadTexture(PATH_TEXTURES_NORMALS));
+                SetTextureFilter(matPBR.normalsTex, FILTER_BILINEAR);
+            #endif
+            #if defined(PATH_TEXTURES_METALLIC)
+                SetMaterialTexturePBR(&matPBR, PBR_METALLIC, LoadTexture(PATH_TEXTURES_METALLIC));
+                SetTextureFilter(matPBR.metallicTex, FILTER_BILINEAR);
+            #endif
+            #if defined(PATH_TEXTURES_ROUGHNESS)
+                SetMaterialTexturePBR(&matPBR, PBR_ROUGHNESS, LoadTexture(PATH_TEXTURES_ROUGHNESS));
+                SetTextureFilter(matPBR.roughnessTex, FILTER_BILINEAR);
+            #endif
+            #if defined(PATH_TEXTURES_AO)
+                SetMaterialTexturePBR(&matPBR, PBR_AO, LoadTexture(PATH_TEXTURES_AO));
+                SetTextureFilter(matPBR.aoTex, FILTER_BILINEAR);
+            #endif
+            #if defined(PATH_TEXTURES_HEIGHT)
+                SetMaterialTexturePBR(&matPBR, PBR_HEIGHT, LoadTexture(PATH_TEXTURES_HEIGHT));
+                SetTextureFilter(matPBR.heightTex, FILTER_BILINEAR);
+            #endif
+
+                // Set up materials and lighting
+                material = (Material){ 0 };
+                material.shader = matPBR.env.pbrShader;
+                model.material = material;
+            }
+            else if (IsFileExtension(droppedFiles[0], ".obj"))
+            {
+                UnloadModel(model);
+                model = LoadModel(droppedFiles[0]);
+                model.material = material;
+            }
+
+            ClearDroppedFiles();
+        }
+
         // Check for capture screenshot input
         if (IsKeyPressed(KEY_P)) TakeScreenshot();
 
@@ -150,26 +250,36 @@ int main()
         if (IsKeyPressed(KEY_R))
         {
             rotationAngle = 0.0f;
-            camera.position = (Vector3){ 2.75f, 3.55f, 2.75f };
-            camera.target = (Vector3){ 1.0f, 2.05f, 1.0f };
+            camera.position = (Vector3){ 3.5f, 3.0f, 3.5f };
+            camera.target = (Vector3){ 1.0f, 1.0f, 1.0f };
             camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
             camera.fovy = 45.0f;
             SetCameraMode(camera, CAMERA_FREE);
+
+            lightAngle = 0.0f;
+            for (int i = 0; i < lightsCount; i++)
+            {
+                float angle = lightAngle + 90*i;
+                lights[i].position.x = LIGHT_DISTANCE*cosf(angle*DEG2RAD);
+                lights[i].position.z = LIGHT_DISTANCE*sinf(angle*DEG2RAD);
+            }
         }
 
-        // Check selected light inputs
-        if (IsKeyPressed(KEY_F1)) selectedLight = 0;
-        else if (IsKeyPressed(KEY_F2)) selectedLight = 1;
-        else if (IsKeyPressed(KEY_F3)) selectedLight = 2;
-        else if (IsKeyPressed(KEY_F4)) selectedLight = 3;
+        // Check for lights movement input
+        if (IsMouseButtonDown(MOUSE_RIGHT_BUTTON))
+        {
+            lastMousePosX = mousePosX;
+            mousePosX = GetMouseX();
+            lightAngle += (mousePosX - lastMousePosX)*LIGHT_SPEED;
 
-        // Check for light position movement inputs
-        if (IsKeyDown(KEY_UP)) lights[selectedLight].position.z += 0.1f;
-        else if (IsKeyDown(KEY_DOWN)) lights[selectedLight].position.z -= 0.1f;
-        if (IsKeyDown(KEY_RIGHT)) lights[selectedLight].position.x += 0.1f;
-        else if (IsKeyDown(KEY_LEFT)) lights[selectedLight].position.x -= 0.1f;
-        if (IsKeyDown(KEY_W)) lights[selectedLight].position.y += 0.1f;
-        else if (IsKeyDown(KEY_S)) lights[selectedLight].position.y -= 0.1f;
+            for (int i = 0; i < lightsCount; i++)
+            {
+                float angle = lightAngle + 90*i;
+                lights[i].position.x = LIGHT_DISTANCE*cosf(angle*DEG2RAD);
+                lights[i].position.z = LIGHT_DISTANCE*sinf(angle*DEG2RAD);
+            }
+        }
+        else mousePosX = GetMouseX();
 
         // Check for render mode inputs
         if (IsKeyPressed(KEY_ONE)) mode = DEFAULT;
@@ -223,7 +333,7 @@ int main()
                     if (drawLights) for (unsigned int i = 0; (i < MAX_LIGHTS); i++) DrawLight(lights[i]);
 
                     // Render skybox (render as last to prevent overdraw)
-                    if (drawSkybox) DrawSkybox(environment, camera);
+                    if (drawSkybox) DrawSkybox(environment, backMode, camera);
 
                 End3dMode();
 
@@ -243,6 +353,9 @@ int main()
 
     // De-Initialization
     //------------------------------------------------------------------------------
+    // Clear internal buffers
+    ClearDroppedFiles();
+    
     // Unload loaded model mesh and binded textures
     UnloadModel(model);
 
