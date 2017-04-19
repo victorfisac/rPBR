@@ -43,14 +43,17 @@
 //----------------------------------------------------------------------------------
 // Defines
 //----------------------------------------------------------------------------------
-#define         PATH_MODEL                  "resources/models/cerberus.obj"
 #define         PATH_TEXTURES_HDR           "resources/textures/hdr/pinetree.hdr"
-#define         PATH_TEXTURES_ALBEDO        "resources/textures/cerberus/cerberus_albedo.png"
-#define         PATH_TEXTURES_NORMALS       "resources/textures/cerberus/cerberus_normals.png"
-#define         PATH_TEXTURES_METALLIC      "resources/textures/cerberus/cerberus_metallic.png"
-#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/cerberus/cerberus_roughness.png"
-#define         PATH_TEXTURES_AO            "resources/textures/cerberus/cerberus_ao.png"
-// #define      PATH_TEXTURES_HEIGHT        "resources/textures/cerberus/cerberus_height.png"
+
+#define         PATH_MODEL                  "resources/models/robot.obj"
+#define         PATH_TEXTURES_ALBEDO        "resources/textures/robot/robot_albedo.png"
+#define         PATH_TEXTURES_NORMALS       "resources/textures/robot/robot_normals.png"
+#define         PATH_TEXTURES_METALLIC      "resources/textures/robot/robot_metallic.png"
+#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/robot/robot_roughness.png"
+#define         PATH_TEXTURES_AO            "resources/textures/robot/robot_ao.png"
+#define         PATH_TEXTURES_EMISSION      "resources/textures/robot/robot_emission.png"
+// #define      PATH_TEXTURES_HEIGHT        "resources/textures/robot/robot_height.png"
+
 #define         PATH_SHADERS_POSTFX_VS      "resources/shaders/postfx.vs"
 #define         PATH_SHADERS_POSTFX_FS      "resources/shaders/postfx.fs"
 
@@ -63,6 +66,8 @@
 #define         LIGHT_SPEED                 0.1f            // Light rotation input speed
 #define         LIGHT_DISTANCE              3.5f            // Light distance from center of world
 #define         LIGHT_HEIGHT                1.0f            // Light height from center of world
+#define         LIGHT_RADIUS                0.05f           // Light gizmo drawing radius
+#define         LIGHT_OFFSET                0.03f           // Light gizmo drawing radius when mouse is over
 
 #define         CUBEMAP_SIZE                1024            // Cubemap texture size
 #define         IRRADIANCE_SIZE             32              // Irradiance map from cubemap texture size
@@ -72,12 +77,12 @@
 //----------------------------------------------------------------------------------
 // Structs and enums
 //----------------------------------------------------------------------------------
-typedef enum { DEFAULT, ALBEDO, NORMALS, METALLIC, ROUGHNESS, AMBIENT_OCCLUSION, LIGHTING, FRESNEL, IRRADIANCE, REFLECTION } RenderMode;
+typedef enum { DEFAULT, ALBEDO, NORMALS, METALLIC, ROUGHNESS, AMBIENT_OCCLUSION, EMISSION, LIGHTING, FRESNEL, IRRADIANCE, REFLECTION } RenderMode;
 
 //----------------------------------------------------------------------------------
 // Function Declarations
 //----------------------------------------------------------------------------------
-// ...
+void DrawLight(Light light, bool over);                     // Draw a light gizmo based on light attributes
 
 //----------------------------------------------------------------------------------
 // Main program
@@ -95,8 +100,9 @@ int main()
 
     // Define render settings states
     RenderMode mode = DEFAULT;
-    BackgroundMode backMode = BACKGROUND_AMBIENT;
+    BackgroundMode backMode = BACKGROUND_SKY;
     bool drawGrid = false;
+    bool drawWires = true;
     bool drawLights = true;
     bool drawSkybox = true;
 
@@ -113,7 +119,7 @@ int main()
     // Define the camera to look into our 3d world, its mode and model drawing position
     float rotationAngle = 0.0f;
     Vector3 rotationAxis = { 0.0f, 1.0f, 0.0f };
-    Camera camera = {{ 3.5f, 3.0f, 3.5f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f };
+    Camera camera = {{ 3.5f, 3.0f, 3.5f }, { 0.0f, 0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 60.0f };
     SetCameraMode(camera, CAMERA_FREE);
 
     // Define environment attributes
@@ -141,6 +147,10 @@ int main()
 #if defined(PATH_TEXTURES_AO)
     SetMaterialTexturePBR(&matPBR, PBR_AO, LoadTexture(PATH_TEXTURES_AO));
     SetTextureFilter(matPBR.aoTex, FILTER_BILINEAR);
+#endif
+#if defined(PATH_TEXTURES_EMISSION)
+    SetMaterialTexturePBR(&matPBR, PBR_EMISSION, LoadTexture(PATH_TEXTURES_EMISSION));
+    SetTextureFilter(matPBR.heightTex, FILTER_BILINEAR);
 #endif
 #if defined(PATH_TEXTURES_HEIGHT)
     SetMaterialTexturePBR(&matPBR, PBR_HEIGHT, LoadTexture(PATH_TEXTURES_HEIGHT));
@@ -223,6 +233,10 @@ int main()
                 SetMaterialTexturePBR(&matPBR, PBR_AO, LoadTexture(PATH_TEXTURES_AO));
                 SetTextureFilter(matPBR.aoTex, FILTER_BILINEAR);
             #endif
+            #if defined(PATH_TEXTURES_EMISSION)
+                SetMaterialTexturePBR(&matPBR, PBR_EMISSION, LoadTexture(PATH_TEXTURES_EMISSION));
+                SetTextureFilter(matPBR.heightTex, FILTER_BILINEAR);
+            #endif
             #if defined(PATH_TEXTURES_HEIGHT)
                 SetMaterialTexturePBR(&matPBR, PBR_HEIGHT, LoadTexture(PATH_TEXTURES_HEIGHT));
                 SetTextureFilter(matPBR.heightTex, FILTER_BILINEAR);
@@ -251,12 +265,13 @@ int main()
         {
             rotationAngle = 0.0f;
             camera.position = (Vector3){ 3.5f, 3.0f, 3.5f };
-            camera.target = (Vector3){ 1.0f, 1.0f, 1.0f };
+            camera.target = (Vector3){ 0.0f, 0.5f, 0.0f };
             camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
             camera.fovy = 45.0f;
             SetCameraMode(camera, CAMERA_FREE);
 
             lightAngle = 0.0f;
+
             for (int i = 0; i < lightsCount; i++)
             {
                 float angle = lightAngle + 90*i;
@@ -288,10 +303,11 @@ int main()
         else if (IsKeyPressed(KEY_FOUR)) mode = METALLIC;
         else if (IsKeyPressed(KEY_FIVE)) mode = ROUGHNESS;
         else if (IsKeyPressed(KEY_SIX)) mode = AMBIENT_OCCLUSION;
-        else if (IsKeyPressed(KEY_SEVEN)) mode = LIGHTING;
-        else if (IsKeyPressed(KEY_EIGHT)) mode = FRESNEL;
-        else if (IsKeyPressed(KEY_NINE)) mode = IRRADIANCE;
-        else if (IsKeyPressed(KEY_ZERO)) mode = REFLECTION;
+        else if (IsKeyPressed(KEY_SEVEN)) mode = EMISSION;
+        else if (IsKeyPressed(KEY_EIGHT)) mode = LIGHTING;
+        else if (IsKeyPressed(KEY_NINE)) mode = FRESNEL;
+        else if (IsKeyPressed(KEY_ZERO)) mode = IRRADIANCE;
+        else if (IsKeyPressed(46)) mode = REFLECTION;     // KEY: .
 
         // Send current mode to PBR shader and enabled screen effects states to post-processing shader
         int shaderMode[1] = { mode };
@@ -304,7 +320,16 @@ int main()
         SetShaderValuei(fxShader, enabledVignetteLoc, shaderMode, 1);
 
         // Update current light position to PBR shader
-        for (int i = 0; i < MAX_LIGHTS; i++) UpdateLightValues(environment.pbrShader, lights[i]);
+        for (int i = 0; i < MAX_LIGHTS; i++)
+        {
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+            {
+                Ray ray = GetMouseRay(GetMousePosition(), camera);
+                if (CheckCollisionRaySphere(ray, lights[i].position, LIGHT_RADIUS)) lights[i].enabled = !lights[i].enabled;
+            }
+
+            UpdateLightValues(environment.pbrShader, lights[i]);
+        }
 
         // Update camera values and send them to all required shaders
         UpdateCamera(&camera);
@@ -328,9 +353,14 @@ int main()
 
                     // Draw loaded model using physically based rendering
                     DrawModelPBR(model, matPBR, (Vector3){ 0, 0, 0 }, rotationAxis, rotationAngle, (Vector3){ MODEL_SCALE, MODEL_SCALE, MODEL_SCALE });
+                    if (drawWires) DrawModelWires(model, (Vector3){ 0, 0, 0 }, MODEL_SCALE, DARKGRAY);
 
                     // Draw light gizmos
-                    if (drawLights) for (unsigned int i = 0; (i < MAX_LIGHTS); i++) DrawLight(lights[i]);
+                    if (drawLights) for (unsigned int i = 0; (i < MAX_LIGHTS); i++)
+                    {
+                        Ray ray = GetMouseRay(GetMousePosition(), camera);
+                        DrawLight(lights[i], CheckCollisionRaySphere(ray, lights[i].position, LIGHT_RADIUS));
+                    }
 
                     // Render skybox (render as last to prevent overdraw)
                     if (drawSkybox) DrawSkybox(environment, backMode, camera);
@@ -355,7 +385,7 @@ int main()
     //------------------------------------------------------------------------------
     // Clear internal buffers
     ClearDroppedFiles();
-    
+
     // Unload loaded model mesh and binded textures
     UnloadModel(model);
 
@@ -379,4 +409,17 @@ int main()
 //----------------------------------------------------------------------------------
 // Function Declarations
 //----------------------------------------------------------------------------------
-// ...
+// Draw a light gizmo based on light attributes
+void DrawLight(Light light, bool over)
+{
+    switch (light.type)
+    {
+        case LIGHT_DIRECTIONAL:
+        {
+            DrawSphere(light.position, (over ? (LIGHT_RADIUS + LIGHT_OFFSET) : LIGHT_RADIUS), (light.enabled ? light.color : GRAY));
+            DrawLine3D(light.position, light.target, (light.enabled ? light.color : DARKGRAY));
+        } break;
+        case LIGHT_POINT: DrawSphere(light.position, (over ? (LIGHT_RADIUS + LIGHT_OFFSET) : LIGHT_RADIUS), (light.enabled ? light.color : GRAY));
+        default: break;
+    }
+}

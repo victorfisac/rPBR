@@ -42,6 +42,7 @@ uniform MaterialProperty normals;
 uniform MaterialProperty metallic;
 uniform MaterialProperty roughness;
 uniform MaterialProperty ao;
+uniform MaterialProperty emission;
 uniform MaterialProperty height;
 
 // Input lighting values
@@ -183,6 +184,7 @@ void main()
     vec3 color = pow(ComputeMaterialProperty(albedo), vec3(2.2));
     vec3 metal = ComputeMaterialProperty(metallic);
     vec3 rough = ComputeMaterialProperty(roughness);
+    vec3 emiss = ComputeMaterialProperty(emission);
     vec3 occlusion = ComputeMaterialProperty(ao);
 
     // Check if normal mapping is enabled
@@ -266,16 +268,17 @@ void main()
     vec3 ambient = (kD*diffuse + reflection)*occlusion;
 
     // Calculate fragment color based on render mode
-    vec3 fragmentColor = ambient + Lo;                                      // Physically Based Rendering
+    vec3 fragmentColor = ambient + Lo + emiss;                              // Physically Based Rendering
     if (renderMode == 1) fragmentColor = color;                             // Albedo
     else if (renderMode == 2) fragmentColor = normal;                       // Normals
     else if (renderMode == 3) fragmentColor = metal;                        // Metallic
     else if (renderMode == 4) fragmentColor = rough;                        // Roughness
     else if (renderMode == 5) fragmentColor = occlusion;                    // Ambient Occlusion
-    else if (renderMode == 6) fragmentColor = lightDot;                     // Lighting
-    else if (renderMode == 7) fragmentColor = kS;                           // Fresnel
-    else if (renderMode == 8) fragmentColor = irradiance;                   // Irradiance
-    else if (renderMode == 9) fragmentColor = reflection;                   // Reflection
+    else if (renderMode == 6) fragmentColor = emiss;                        // Emission
+    else if (renderMode == 7) fragmentColor = lightDot;                     // Lighting
+    else if (renderMode == 8) fragmentColor = kS;                           // Fresnel
+    else if (renderMode == 9) fragmentColor = irradiance;                   // Irradiance
+    else if (renderMode == 10) fragmentColor = reflection;                  // Reflection
 
     // Apply HDR tonemapping
     fragmentColor = fragmentColor/(fragmentColor + vec3(1.0));

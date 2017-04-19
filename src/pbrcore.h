@@ -6,7 +6,7 @@
 *       - Phyiscally based rendering for any 3D model.
 *       - Metalness/Roughness PBR workflow.
 *       - Split-Sum Approximation for specular reflection calculations.
-*       - Support for normal mapping and parallax mapping.
+*       - Support for normal mapping, parallax mapping and emission mapping.
 *       - Simple and easy-to-use implementation code.
 *       - Multi-material scene supported.
 *       - Point and directional lights supported.
@@ -69,8 +69,6 @@
 #define         PATH_BRDF_VS                "resources/shaders/brdf.vs"
 #define         PATH_BRDF_FS                "resources/shaders/brdf.fs"
 
-#define         LIGHT_RADIUS                0.05f
-
 //----------------------------------------------------------------------------------
 // Structs and enums
 //----------------------------------------------------------------------------------
@@ -121,6 +119,7 @@ typedef struct MaterialPBR {
     Texture2D metallicTex;
     Texture2D roughnessTex;
     Texture2D aoTex;
+    Texture2D emissionTex;
     Texture2D heightTex;
 
     bool useAlbedoMap;
@@ -128,6 +127,7 @@ typedef struct MaterialPBR {
     bool useMetallicMap;
     bool useRoughnessMap;
     bool useOcclusionMap;
+    bool useEmissionMap;
     bool useParallaxMap;
 
     Color albedoColor;
@@ -135,6 +135,7 @@ typedef struct MaterialPBR {
     Color metallicColor;
     Color roughnessColor;
     Color aoColor;
+    Color emissionColor;
     Color heightColor;
 
     Environment env;
@@ -146,6 +147,7 @@ typedef enum TypePBR {
     PBR_METALLIC,
     PBR_ROUGHNESS,
     PBR_AO,
+    PBR_EMISSION,
     PBR_HEIGHT
 } TypePBR;
 
@@ -160,7 +162,6 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
 void UpdateLightValues(Shader shader, Light light);                                                                             // Send to shader light values
 
 void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotationAxis, float rotationAngle, Vector3 scale);    // Draw a model using physically based rendering
-void DrawLight(Light light);                                                                                                    // Draw a light gizmo based on light attributes                  
 void DrawSkybox(Environment environment, int mode, Camera camera);                                                              // Draw a cube skybox using environment cube map
 void RenderCube(void);                                                                                                          // Renders a 1x1 3D cube in NDC
 void RenderQuad(void);                                                                                                          // Renders a 1x1 XY quad in NDC
@@ -182,6 +183,7 @@ MaterialPBR SetupMaterialPBR(Environment env, Color albedo, int metallic, int ro
     mat.roughnessColor = (Color){ roughness, 0, 0, 0 };
     mat.aoColor = (Color){ 255, 255, 255, 255 };
     mat.heightColor = (Color){ 0, 0, 0, 0 };
+    mat.emissionColor = (Color){ 0, 0, 0, 0 };
 
     mat.env = env;
 
@@ -192,7 +194,8 @@ MaterialPBR SetupMaterialPBR(Environment env, Color albedo, int metallic, int ro
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "metallic.sampler"), 5);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "roughness.sampler"), 6);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "ao.sampler"), 7);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "height.sampler"), 8);
+    glUniform1i(GetShaderLocation(mat.env.pbrShader, "emission.sampler"), 8);
+    glUniform1i(GetShaderLocation(mat.env.pbrShader, "height.sampler"), 9);
 
     printf("INFO: [PBR] PBR material set up successfully\n");
 
@@ -231,6 +234,11 @@ void SetMaterialTexturePBR(MaterialPBR *mat, TypePBR type, Texture2D texture)
         {
             mat->aoTex = texture;
             mat->useOcclusionMap = true;
+        } break;
+        case PBR_EMISSION:
+        {
+            mat->emissionTex = texture;
+            mat->useEmissionMap = true;
         } break;
         case PBR_HEIGHT:
         {
@@ -335,6 +343,7 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     glDepthFunc(GL_LEQUAL);
     glDisable(GL_CULL_FACE);
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+    glLineWidth(2);
 
     // Load HDR environment texture
     unsigned int skyTex = 0;
@@ -346,7 +355,7 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     {
         glGenTextures(1, &skyTex);
         glBindTexture(GL_TEXTURE_2D, skyTex);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, data); 
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, data);
 
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -394,7 +403,8 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     glBindTexture(GL_TEXTURE_2D, skyTex);
     SetShaderValueMatrix(env.cubeShader, cubeProjectionLoc, captureProjection);
 
-    glViewport(0, 0, cubemapSize, cubemapSize);     // Note: don't forget to configure the viewport to the capture dimensions
+    // Note: don't forget to configure the viewport to the capture dimensions
+    glViewport(0, 0, cubemapSize, cubemapSize);
     glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
 
     for (unsigned int i = 0; i < 6; i++)
@@ -428,7 +438,8 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     glBindTexture(GL_TEXTURE_CUBE_MAP, env.cubemapId);
     SetShaderValueMatrix(env.irradianceShader, irradianceProjectionLoc, captureProjection);
 
-    glViewport(0, 0, irradianceSize, irradianceSize);   // Note: don't forget to configure the viewport to the capture dimensions
+    // Note: don't forget to configure the viewport to the capture dimensions
+    glViewport(0, 0, irradianceSize, irradianceSize);
     glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
 
     for (unsigned int i = 0; i < 6; i++)
@@ -449,12 +460,12 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); 
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     // Generate mipmaps for the prefiltered HDR texture
     glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
-    
+
     // Prefilter HDR and store data into mipmap levels
     glUseProgram(env.prefilterShader.id);
     glActiveTexture(GL_TEXTURE0);
@@ -463,6 +474,7 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
 
     glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
     unsigned int maxMipLevels = 5;
+
     for (unsigned int mip = 0; mip < maxMipLevels; mip++)
     {
         // Resize framebuffer according to mip-level size.
@@ -474,18 +486,18 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
 
         float roughness = (float)mip/(float)(maxMipLevels - 1);
         glUniform1f(prefilterRoughnessLoc, roughness);
+
         for (unsigned int i = 0; i < 6; ++i)
         {
             SetShaderValueMatrix(env.prefilterShader, prefilterViewLoc, captureViews[i]);
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, env.prefilterId, mip);
-
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             RenderCube();
         }
     }
 
     // Unbind framebuffer and textures
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);   
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // Generate BRDF convolution texture
     glGenTextures(1, &env.brdfId);
@@ -511,7 +523,7 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // Then before rendering, configure the viewport to the actual screen dimensions
-    Matrix defaultProjection = MatrixPerspective(45.0, (double)GetScreenWidth()/(double)GetScreenHeight(), 0.01, 1000.0);
+    Matrix defaultProjection = MatrixPerspective(60.0, (double)GetScreenWidth()/(double)GetScreenHeight(), 0.01, 1000.0);
     MatrixTranspose(&defaultProjection);
     SetShaderValueMatrix(env.cubeShader, cubeProjectionLoc, defaultProjection);
     SetShaderValueMatrix(env.skyShader, skyProjectionLoc, defaultProjection);
@@ -557,6 +569,8 @@ void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotati
     SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "roughness.color"), shaderRoughness, 3);
     float shaderAo[3] = { (float)mat.aoColor.r/(float)255, (float)mat.aoColor.g/(float)255, (float)mat.aoColor.b/(float)255 };
     SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "ao.color"), shaderAo, 3);
+    float shaderEmission[3] = { (float)mat.emissionColor.r/(float)255, (float)mat.emissionColor.g/(float)255, (float)mat.emissionColor.b/(float)255 };
+    SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "emission.color"), shaderEmission, 3);
     float shaderHeight[3] = { (float)mat.heightColor.r/(float)255, (float)mat.heightColor.g/(float)255, (float)mat.heightColor.b/(float)255 };
     SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "height.color"), shaderHeight, 3);
 
@@ -567,6 +581,7 @@ void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotati
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "metallic.useSampler"), mat.useMetallicMap);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "roughness.useSampler"), mat.useRoughnessMap);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "ao.useSampler"), mat.useOcclusionMap);
+    glUniform1i(GetShaderLocation(mat.env.pbrShader, "emission.useSampler"), mat.useEmissionMap);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "height.useSampler"), mat.useParallaxMap);
 
     // Calculate and send to shader model matrix
@@ -587,7 +602,7 @@ void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotati
     // Enable and bind BRDF LUT map
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, mat.env.brdfId);
-    
+
     if (mat.useAlbedoMap)
     {
         // Disable and bind albedo map
@@ -650,7 +665,7 @@ void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotati
         glActiveTexture(GL_TEXTURE5);
         glBindTexture(GL_TEXTURE_2D, mat.metallicTex.id);
     }
-    
+
     if (mat.useRoughnessMap)
     {
         // Enable and bind roughness map
@@ -664,11 +679,18 @@ void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotati
         glActiveTexture(GL_TEXTURE7);
         glBindTexture(GL_TEXTURE_2D, mat.aoTex.id);
     }
-    
+
+    if (mat.useEmissionMap)
+    {
+        // Enable and bind emission map
+        glActiveTexture(GL_TEXTURE8);
+        glBindTexture(GL_TEXTURE_2D, mat.emissionTex.id);
+    }
+
     if (mat.useParallaxMap)
     {
         // Enable and bind parallax height map
-        glActiveTexture(GL_TEXTURE8);
+        glActiveTexture(GL_TEXTURE9);
         glBindTexture(GL_TEXTURE_2D, mat.heightTex.id);
     }
 
@@ -722,27 +744,18 @@ void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotati
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
-    if (mat.useParallaxMap)
+    if (mat.useEmissionMap)
     {
-        // Disable and bind parallax height map
+        // Disable and bind emission map
         glActiveTexture(GL_TEXTURE8);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
-}
 
-// Draw a light gizmo based on light attributes
-void DrawLight(Light light)
-{
-    switch (light.type)
+    if (mat.useParallaxMap)
     {
-        case LIGHT_DIRECTIONAL:
-        {
-            DrawSphere(light.position, LIGHT_RADIUS/2, (light.enabled ? light.color : GRAY));
-            DrawSphere(light.target, LIGHT_RADIUS/2, (light.enabled ? light.color : GRAY));
-            DrawLine3D(light.position, light.target, (light.enabled ? light.color : DARKGRAY));
-        } break;
-        case LIGHT_POINT: DrawSphere(light.position, LIGHT_RADIUS, (light.enabled ? light.color : GRAY));
-        default: break;
+        // Disable and bind parallax height map
+        glActiveTexture(GL_TEXTURE9);
+        glBindTexture(GL_TEXTURE_2D, 0);
     }
 }
 
@@ -757,6 +770,7 @@ void DrawSkybox(Environment environment, int mode, Camera camera)
     glUniform1i(GetShaderLocation(environment.skyShader, "skyMode"), mode);
     SetShaderValueMatrix(environment.skyShader, environment.skyViewLoc, view);
     glActiveTexture(GL_TEXTURE0);
+
     switch (mode)
     {
         case BACKGROUND_SKY: glBindTexture(GL_TEXTURE_CUBE_MAP, environment.cubemapId); break;
@@ -774,52 +788,46 @@ GLuint cubeVAO = 0;
 GLuint cubeVBO = 0;
 void RenderCube(void)
 {
-    // Initialize (if necessary)
+    // Initialize if it is not yet
     if (cubeVAO == 0)
     {
         GLfloat vertices[] = {
-            // Back face
-            -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f,   // Bottom-left
-            1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f,    // top-right
-            1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f,    // bottom-right         
-            1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f,    // top-right
-            -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f,   // bottom-left
-            -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f,   // top-left
-            // Front face
-            -1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f,   // bottom-left
-            1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f,    // bottom-right
-            1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f,    // top-right
-            1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f,    // top-right
-            -1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f,   // top-left
-            -1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f,   // bottom-left
-            // Left face
-            -1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f,   // top-right
-            -1.0f,  1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f,   // top-left
-            -1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f,   // bottom-left
-            -1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f,   // bottom-left
-            -1.0f, -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f,   // bottom-right
-            -1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f,   // top-right
-            // Right face
-            1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f,    // top-left
-            1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f,    // bottom-right
-            1.0f,  1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f,    // top-right         
-            1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f,    // bottom-right
-            1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f,    // top-left
-            1.0f, -1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f,    // bottom-left     
-            // Bottom face
-            -1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f,   // top-right
-            1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f,    // top-left
-            1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f,    // bottom-left
-            1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f,    // bottom-left
-            -1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f,   // bottom-right
-            -1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f,   // top-right
-            // Top face
-            -1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f,   // top-left
-            1.0f,  1.0f , 1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f,    // bottom-right
-            1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f,    // top-right     
-            1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f,    // bottom-right
-            -1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f,   // top-left
-            -1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f    // bottom-left        
+            -1.0f, -1.0f, -1.0f,  0.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+            1.0f, 1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 1.0f, 1.0f,
+            1.0f, -1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f,
+            1.0f, 1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 1.0f, 1.0f,
+            -1.0f, -1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+            -1.0f, 1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f,
+            -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+            1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f,
+            1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f,
+            1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f,
+            -1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f,
+            -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+            -1.0f, 1.0f, 1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+            -1.0f, 1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
+            -1.0f, -1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+            -1.0f, -1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+            -1.0f, -1.0f, 1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+            -1.0f, 1.0f, 1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+            1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+            1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+            1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
+            1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+            1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+            1.0f, -1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+            -1.0f, -1.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f,
+            1.0f, -1.0f, -1.0f, 0.0f, -1.0f, 0.0f, 1.0f, 1.0f,
+            1.0f, -1.0f, 1.0f, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+            1.0f, -1.0f, 1.0f, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+            -1.0f, -1.0f, 1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+            -1.0f, -1.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f,
+            -1.0f, 1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+            1.0f, 1.0f , 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f,
+            1.0f, 1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f,
+            1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f,
+            -1.0f, 1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+            -1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f
         };
 
         // Set up cube VAO
@@ -853,7 +861,8 @@ GLuint quadVAO = 0;
 GLuint quadVBO;
 void RenderQuad(void)
 {
-    if (quadVAO == 0) 
+    // Initialize if it is not yet
+    if (quadVAO == 0)
     {
         GLfloat quadVertices[] = {
             // Positions        // Texture Coords
@@ -893,6 +902,7 @@ void UnloadMaterialPBR(MaterialPBR mat)
     if (mat.useMetallicMap) UnloadTexture(mat.metallicTex);
     if (mat.useRoughnessMap) UnloadTexture(mat.roughnessTex);
     if (mat.useOcclusionMap) UnloadTexture(mat.aoTex);
+    if (mat.useEmissionMap) UnloadTexture(mat.emissionTex);
     if (mat.useParallaxMap) UnloadTexture(mat.heightTex);
 
     printf("INFO: [PBR] unloaded PBR material textures successfully\n");
@@ -914,6 +924,6 @@ void UnloadEnvironment(Environment env)
     glDeleteTextures(1, &env.irradianceId);
     glDeleteTextures(1, &env.prefilterId);
     glDeleteTextures(1, &env.brdfId);
-    
+
     printf("INFO: [PBR] unloaded environment successfully\n");
 }
