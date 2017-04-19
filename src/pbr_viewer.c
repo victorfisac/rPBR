@@ -100,6 +100,7 @@ int main()
 
     // Define render settings states
     RenderMode mode = DEFAULT;
+    CameraMode cameraMode = CAMERA_FREE;
     BackgroundMode backMode = BACKGROUND_SKY;
     bool drawGrid = false;
     bool drawWires = true;
@@ -120,7 +121,7 @@ int main()
     float rotationAngle = 0.0f;
     Vector3 rotationAxis = { 0.0f, 1.0f, 0.0f };
     Camera camera = {{ 3.5f, 3.0f, 3.5f }, { 0.0f, 0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 60.0f };
-    SetCameraMode(camera, CAMERA_FREE);
+    SetCameraMode(camera, cameraMode);
 
     // Define environment attributes
     Environment environment = LoadEnvironment(PATH_TEXTURES_HDR, CUBEMAP_SIZE, IRRADIANCE_SIZE, PREFILTERED_SIZE, BRDF_SIZE);
@@ -259,6 +260,18 @@ int main()
 
         // Check for capture screenshot input
         if (IsKeyPressed(KEY_P)) TakeScreenshot();
+
+        // Check for switch camera mode input
+        if (IsKeyPressed(KEY_C))
+        {
+            rotationAngle = 0.0f;
+            camera.position = (Vector3){ 3.5f, 3.0f, 3.5f };
+            camera.target = (Vector3){ 0.0f, 0.5f, 0.0f };
+            camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
+            camera.fovy = 60.0f;
+            cameraMode = ((cameraMode == CAMERA_FREE) ? CAMERA_ORBITAL : CAMERA_FREE);
+            SetCameraMode(camera, cameraMode);
+        }
 
         // Check for scene camera reset input
         if (IsKeyPressed(KEY_R))
