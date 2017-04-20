@@ -46,17 +46,17 @@
 #include "raylib.h"                         // Required for raylib framework
 #include "raymath.h"                        // Required for matrix, vectors and other math functions
 #include "pbrcore.h"                        // Required for lighting, environment and drawing functions
+#include "pbrui.h"                          // Required for interface drawing
 
 //----------------------------------------------------------------------------------
 // Defines
 //----------------------------------------------------------------------------------
 #define         WINDOW_TITLE                "rPBR - Physically based rendering 3D model viewer"
-#define         PATH_ICON                   "resources/textures/rpbr_icon.png"
 #define         WINDOW_WIDTH                1440
 #define         WINDOW_HEIGHT               810
 
+#define         PATH_ICON                   "resources/textures/rpbr_icon.png"
 #define         PATH_TEXTURES_HDR           "resources/textures/hdr/pinetree.hdr"
-
 #define         PATH_MODEL                  "resources/models/cerberus.obj"
 #define         PATH_TEXTURES_ALBEDO        "resources/textures/cerberus/cerberus_albedo.png"
 #define         PATH_TEXTURES_NORMALS       "resources/textures/cerberus/cerberus_normals.png"
@@ -65,7 +65,6 @@
 #define         PATH_TEXTURES_AO            "resources/textures/cerberus/cerberus_ao.png"
 // #define      PATH_TEXTURES_EMISSION      "resources/textures/cerberus/cerberus_emission.png"
 // #define      PATH_TEXTURES_HEIGHT        "resources/textures/cerberus/cerberus_height.png"
-
 #define         PATH_SHADERS_POSTFX_VS      "resources/shaders/postfx.vs"
 #define         PATH_SHADERS_POSTFX_FS      "resources/shaders/postfx.fs"
 
@@ -73,7 +72,6 @@
 #define         MAX_LIGHTS                  4                   // Max lights supported by shader
 
 #define         CAMERA_FOV                  60.0f               // Camera global field of view
-
 #define         MODEL_SCALE                 1.75f               // Model scale transformation for rendering
 #define         MODEL_OFFSET                0.45f               // Distance between models for rendering
 #define         ROTATION_SPEED              0.0f                // Models rotation speed
@@ -115,10 +113,12 @@ int main()
     // Enable Multi Sampling Anti Aliasing 4x (if available)
     SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
+    InitInterface();
 
     // Change default window icon
     Image icon = LoadImage(PATH_ICON);
     SetWindowIcon(icon);
+    SetWindowMinSize(960, 540);
 
     // Define render settings states
     RenderMode renderMode = DEFAULT;
@@ -130,7 +130,7 @@ int main()
     bool drawLights = false;
     bool drawSkybox = true;
     bool drawFPS = true;
-    bool drawUI = false;
+    bool drawUI = true;
 
     // Define post-processing effects enabled states
     bool enabledFxaa = true;
@@ -190,7 +190,7 @@ int main()
     model.material = material;
 
     // Get shaders required locations
-    int shaderModeLoc = GetShaderLocation(model.material.shader, "renderMode");
+    int shaderModeLoc = GetShaderLocation(environment.pbrShader, "renderMode");
     int fxResolutionLoc = GetShaderLocation(fxShader, "resolution");
     int enabledFxaaLoc = GetShaderLocation(fxShader, "enabledFxaa");
     int enabledBloomLoc = GetShaderLocation(fxShader, "enabledBloom");
@@ -367,7 +367,7 @@ int main()
 
         // Send current mode to PBR shader and enabled screen effects states to post-processing shader
         int shaderMode[1] = { renderMode };
-        SetShaderValuei(model.material.shader, shaderModeLoc, shaderMode, 1);
+        SetShaderValuei(environment.pbrShader, shaderModeLoc, shaderMode, 1);
         shaderMode[0] = enabledFxaa;
         SetShaderValuei(fxShader, enabledFxaaLoc, shaderMode, 1);
         shaderMode[0] = enabledBloom;
@@ -436,6 +436,8 @@ int main()
                 DrawTexturePro(fxTarget.texture, (Rectangle){ 0, 0, fxTarget.texture.width, -fxTarget.texture.height }, (Rectangle){ 0, 0, GetScreenWidth(), GetScreenHeight() }, (Vector2){ 0, 0 }, 0.0f, WHITE);
 
             EndShaderMode();
+
+            if (drawUI) DrawInterface(GetScreenWidth(), GetScreenHeight());
 
             if (drawFPS) DrawFPS(10, 10);
 
