@@ -45,21 +45,19 @@
 //----------------------------------------------------------------------------------
 #define         PATH_TEXTURES_HDR           "resources/textures/hdr/pinetree.hdr"
 
-#define         PATH_MODEL                  "resources/models/robot.obj"
-#define         PATH_TEXTURES_ALBEDO        "resources/textures/robot/robot_albedo.png"
-#define         PATH_TEXTURES_NORMALS       "resources/textures/robot/robot_normals.png"
-#define         PATH_TEXTURES_METALLIC      "resources/textures/robot/robot_metallic.png"
-#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/robot/robot_roughness.png"
-#define         PATH_TEXTURES_AO            "resources/textures/robot/robot_ao.png"
-#define         PATH_TEXTURES_EMISSION      "resources/textures/robot/robot_emission.png"
-// #define      PATH_TEXTURES_HEIGHT        "resources/textures/robot/robot_height.png"
+#define         PATH_MODEL                  "resources/models/cerberus.obj"
+#define         PATH_TEXTURES_ALBEDO        "resources/textures/cerberus/cerberus_albedo.png"
+#define         PATH_TEXTURES_NORMALS       "resources/textures/cerberus/cerberus_normals.png"
+#define         PATH_TEXTURES_METALLIC      "resources/textures/cerberus/cerberus_metallic.png"
+#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/cerberus/cerberus_roughness.png"
+#define         PATH_TEXTURES_AO            "resources/textures/cerberus/cerberus_ao.png"
+// #define      PATH_TEXTURES_EMISSION      "resources/textures/cerberus/cerberus_emission.png"
+// #define      PATH_TEXTURES_HEIGHT        "resources/textures/cerberus/cerberus_height.png"
 
 #define         PATH_SHADERS_POSTFX_VS      "resources/shaders/postfx.vs"
 #define         PATH_SHADERS_POSTFX_FS      "resources/shaders/postfx.fs"
 
 #define         MAX_LIGHTS                  4               // Max lights supported by shader
-#define         MAX_ROWS                    1               // Rows to render models
-#define         MAX_COLUMNS                 1               // Columns to render models
 #define         MODEL_SCALE                 1.75f           // Model scale transformation for rendering
 #define         MODEL_OFFSET                0.45f           // Distance between models for rendering
 #define         ROTATION_SPEED              0.0f            // Models rotation speed
@@ -103,9 +101,10 @@ int main()
     CameraMode cameraMode = CAMERA_FREE;
     BackgroundMode backMode = BACKGROUND_SKY;
     bool drawGrid = false;
-    bool drawWires = true;
-    bool drawLights = true;
+    bool drawWires = false;
+    bool drawLights = false;
     bool drawSkybox = true;
+    bool drawFPS = false;
 
     // Define post-processing effects enabled states
     bool enabledFxaa = true;
@@ -399,7 +398,7 @@ int main()
 
             EndShaderMode();
 
-            DrawFPS(10, 10);
+            if (drawFPS) DrawFPS(10, 10);
 
         EndDrawing();
         //--------------------------------------------------------------------------
