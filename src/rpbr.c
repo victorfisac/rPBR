@@ -60,9 +60,9 @@
 #define         PATH_MODEL                  "resources/models/cerberus.obj"
 #define         PATH_TEXTURES_ALBEDO        "resources/textures/cerberus/cerberus_albedo.png"
 #define         PATH_TEXTURES_NORMALS       "resources/textures/cerberus/cerberus_normals.png"
-#define         PATH_TEXTURES_METALLIC      "resources/textures/cerberus/cerberus_metallic.png"
+#define         PATH_TEXTURES_METALNESS     "resources/textures/cerberus/cerberus_metalness.png"
 #define         PATH_TEXTURES_ROUGHNESS     "resources/textures/cerberus/cerberus_roughness.png"
-#define         PATH_TEXTURES_AO            "resources/textures/cerberus/cerberus_ao.png"
+// #define      PATH_TEXTURES_AO            "resources/textures/cerberus/cerberus_ao.png"
 // #define      PATH_TEXTURES_EMISSION      "resources/textures/cerberus/cerberus_emission.png"
 // #define      PATH_TEXTURES_HEIGHT        "resources/textures/cerberus/cerberus_height.png"
 #define         PATH_SHADERS_POSTFX_VS      "resources/shaders/postfx.vs"
@@ -70,6 +70,8 @@
 
 #define         MAX_RENDER_SCALES           3                   // Max number of available render scales (0.5X, 1X, 2X)
 #define         MAX_LIGHTS                  4                   // Max lights supported by shader
+#define         MAX_SCROLL                  850                 // Max mouse wheel for interface scrolling
+#define         SCROLL_SPEED                50                  // Interface scrolling speed
 
 #define         CAMERA_FOV                  60.0f               // Camera global field of view
 #define         MODEL_SCALE                 1.75f               // Model scale transformation for rendering
@@ -90,7 +92,7 @@
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
-typedef enum { DEFAULT, ALBEDO, NORMALS, METALLIC, ROUGHNESS, AMBIENT_OCCLUSION, EMISSION, LIGHTING, FRESNEL, IRRADIANCE, REFLECTION } RenderMode;
+typedef enum { DEFAULT, ALBEDO, NORMALS, METALNESS, ROUGHNESS, AMBIENT_OCCLUSION, EMISSION, LIGHTING, FRESNEL, IRRADIANCE, REFLECTION } RenderMode;
 typedef enum { RENDER_SCALE_0_5X, RENDER_SCALE_1X, RENDER_SCALE_2X } RenderScale;
 
 //----------------------------------------------------------------------------------
@@ -127,10 +129,14 @@ int main()
     BackgroundMode backMode = BACKGROUND_SKY;
     bool drawGrid = false;
     bool drawWires = false;
-    bool drawLights = false;
+    bool drawLights = true;
     bool drawSkybox = true;
     bool drawFPS = true;
     bool drawUI = true;
+    bool canMoveCamera = true;
+    bool overUI = false;
+    int scrolling = 0;
+    Texture2D textures[7] = { 0 };
 
     // Define post-processing effects enabled states
     bool enabledFxaa = true;
@@ -157,30 +163,37 @@ int main()
 #if defined(PATH_TEXTURES_ALBEDO)
     SetMaterialTexturePBR(&matPBR, PBR_ALBEDO, LoadTexture(PATH_TEXTURES_ALBEDO));
     SetTextureFilter(matPBR.albedoTex, FILTER_BILINEAR);
+    textures[PBR_ALBEDO] = matPBR.albedoTex;
 #endif
 #if defined(PATH_TEXTURES_NORMALS)
     SetMaterialTexturePBR(&matPBR, PBR_NORMALS, LoadTexture(PATH_TEXTURES_NORMALS));
     SetTextureFilter(matPBR.normalsTex, FILTER_BILINEAR);
+    textures[PBR_NORMALS] = matPBR.normalsTex;
 #endif
-#if defined(PATH_TEXTURES_METALLIC)
-    SetMaterialTexturePBR(&matPBR, PBR_METALLIC, LoadTexture(PATH_TEXTURES_METALLIC));
-    SetTextureFilter(matPBR.metallicTex, FILTER_BILINEAR);
+#if defined(PATH_TEXTURES_METALNESS)
+    SetMaterialTexturePBR(&matPBR, PBR_METALNESS, LoadTexture(PATH_TEXTURES_METALNESS));
+    SetTextureFilter(matPBR.metalnessTex, FILTER_BILINEAR);
+    textures[PBR_METALNESS] = matPBR.metalnessTex;
 #endif
 #if defined(PATH_TEXTURES_ROUGHNESS)
     SetMaterialTexturePBR(&matPBR, PBR_ROUGHNESS, LoadTexture(PATH_TEXTURES_ROUGHNESS));
     SetTextureFilter(matPBR.roughnessTex, FILTER_BILINEAR);
+    textures[PBR_ROUGHNESS] = matPBR.roughnessTex;
 #endif
 #if defined(PATH_TEXTURES_AO)
     SetMaterialTexturePBR(&matPBR, PBR_AO, LoadTexture(PATH_TEXTURES_AO));
     SetTextureFilter(matPBR.aoTex, FILTER_BILINEAR);
+    textures[PBR_AO] = matPBR.aoTex;
 #endif
 #if defined(PATH_TEXTURES_EMISSION)
     SetMaterialTexturePBR(&matPBR, PBR_EMISSION, LoadTexture(PATH_TEXTURES_EMISSION));
-    SetTextureFilter(matPBR.heightTex, FILTER_BILINEAR);
+    SetTextureFilter(matPBR.emissionTex, FILTER_BILINEAR);
+    textures[PBR_EMISSION] = matPBR.emissionTex;
 #endif
 #if defined(PATH_TEXTURES_HEIGHT)
     SetMaterialTexturePBR(&matPBR, PBR_HEIGHT, LoadTexture(PATH_TEXTURES_HEIGHT));
     SetTextureFilter(matPBR.heightTex, FILTER_BILINEAR);
+    textures[PBR_HEIGHT] = matPBR.heightTex;
 #endif
     Shader fxShader = LoadShader(PATH_SHADERS_POSTFX_VS, PATH_SHADERS_POSTFX_FS);
 
@@ -197,11 +210,12 @@ int main()
     int enabledVignetteLoc = GetShaderLocation(fxShader, "enabledVignette");
 
     // Define lights attributes
-    Light lights[MAX_LIGHTS] = { 0 };
-    lights[0] = CreateLight(LIGHT_POINT, (Vector3){ LIGHT_DISTANCE, LIGHT_HEIGHT, 0.0f }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 255, 0, 0, 255 }, environment);
-    lights[2] = CreateLight(LIGHT_POINT, (Vector3){ 0.0f, LIGHT_HEIGHT, LIGHT_DISTANCE }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 0, 255, 0, 255 }, environment);
-    lights[3] = CreateLight(LIGHT_POINT, (Vector3){ -LIGHT_DISTANCE, LIGHT_HEIGHT, 0.0f }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 0, 0, 255, 255 }, environment);
-    lights[4] = CreateLight(LIGHT_DIRECTIONAL, (Vector3){ 0, LIGHT_HEIGHT*2.0f, -LIGHT_DISTANCE }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 255, 0, 255, 255 }, environment);
+    Light lights[MAX_LIGHTS] = {
+        CreateLight(LIGHT_POINT, (Vector3){ LIGHT_DISTANCE, LIGHT_HEIGHT, 0.0f }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 255, 0, 0, 255 }, environment),
+        CreateLight(LIGHT_POINT, (Vector3){ 0.0f, LIGHT_HEIGHT, LIGHT_DISTANCE }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 0, 255, 0, 255 }, environment),
+        CreateLight(LIGHT_POINT, (Vector3){ -LIGHT_DISTANCE, LIGHT_HEIGHT, 0.0f }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 0, 0, 255, 255 }, environment),
+        CreateLight(LIGHT_DIRECTIONAL, (Vector3){ 0, LIGHT_HEIGHT*2.0f, -LIGHT_DISTANCE }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 255, 0, 255, 255 }, environment)
+    };
     int totalLights = GetLightsCount();
 
     // Create a render texture for antialiasing post-processing effect and initialize Bloom shader
@@ -223,6 +237,7 @@ int main()
         //--------------------------------------------------------------------------
         // Update current rotation angle
         rotationAngle += ROTATION_SPEED;
+        overUI = CheckCollisionPointRec(GetMousePosition(), (Rectangle){ GetScreenWidth() - UI_MENU_WIDTH, 0, UI_MENU_WIDTH, GetScreenHeight() });
 
         // Check if a file is dropped
         if (IsFileDropped())
@@ -248,9 +263,9 @@ int main()
                 SetMaterialTexturePBR(&matPBR, PBR_NORMALS, LoadTexture(PATH_TEXTURES_NORMALS));
                 SetTextureFilter(matPBR.normalsTex, FILTER_BILINEAR);
             #endif
-            #if defined(PATH_TEXTURES_METALLIC)
-                SetMaterialTexturePBR(&matPBR, PBR_METALLIC, LoadTexture(PATH_TEXTURES_METALLIC));
-                SetTextureFilter(matPBR.metallicTex, FILTER_BILINEAR);
+            #if defined(PATH_TEXTURES_METALNESS)
+                SetMaterialTexturePBR(&matPBR, PBR_METALNESS, LoadTexture(PATH_TEXTURES_METALNESS));
+                SetTextureFilter(matPBR.metalnessTex, FILTER_BILINEAR);
             #endif
             #if defined(PATH_TEXTURES_ROUGHNESS)
                 SetMaterialTexturePBR(&matPBR, PBR_ROUGHNESS, LoadTexture(PATH_TEXTURES_ROUGHNESS));
@@ -310,15 +325,6 @@ int main()
             camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
             camera.fovy = CAMERA_FOV;
             SetCameraMode(camera, cameraMode);
-
-            // Reset lights positions
-            lightAngle = 0.0f;
-            for (int i = 0; i < totalLights; i++)
-            {
-                float angle = lightAngle + 90*i;
-                lights[i].position.x = LIGHT_DISTANCE*cosf(angle*DEG2RAD);
-                lights[i].position.z = LIGHT_DISTANCE*sinf(angle*DEG2RAD);
-            }
         }
 
         // Check for lights movement input
@@ -339,11 +345,33 @@ int main()
         }
         else mousePosX = GetMouseX();
 
+        // Check for interface scrolling
+        if (GetMouseWheelMove() != 0 && overUI)
+        {
+            scrolling += GetMouseWheelMove()*SCROLL_SPEED;
+            if (scrolling < -MAX_SCROLL) scrolling = -MAX_SCROLL;
+            else if (scrolling > 0) scrolling = 0;
+        }
+
+        // Apply camera movement just if movement start is in viewport range
+        if (IsMouseButtonPressed(MOUSE_MIDDLE_BUTTON) && overUI) canMoveCamera = false;
+        else if (IsMouseButtonReleased(MOUSE_MIDDLE_BUTTON)) canMoveCamera = true;
+
+        // Avoid conflict between camera zoom and interface scroll
+        if (GetMouseWheelMove() != 0) canMoveCamera = !overUI;
+
+        // Check for camera movement inputs
+        if (canMoveCamera) UpdateCamera(&camera);
+
+        // Fix camera move state if camera mode is orbital and mouse middle button is not down
+        if (!canMoveCamera && ((!IsMouseButtonDown(MOUSE_MIDDLE_BUTTON) && (cameraMode == CAMERA_ORBITAL)))) canMoveCamera = true;
+
+        /*// DEBUG INPUTS
         // Check for render mode inputs
         if (IsKeyPressed(KEY_F1)) renderMode = DEFAULT;
         else if (IsKeyPressed(KEY_F2)) renderMode = ALBEDO;
         else if (IsKeyPressed(KEY_F3)) renderMode = NORMALS;
-        else if (IsKeyPressed(KEY_F4)) renderMode = METALLIC;
+        else if (IsKeyPressed(KEY_F4)) renderMode = METALNESS;
         else if (IsKeyPressed(KEY_F5)) renderMode = ROUGHNESS;
         else if (IsKeyPressed(KEY_F6)) renderMode = AMBIENT_OCCLUSION;
         else if (IsKeyPressed(KEY_F7)) renderMode = EMISSION;
@@ -364,7 +392,30 @@ int main()
             renderScale--;
             UnloadRenderTexture(fxTarget);
             fxTarget = LoadRenderTexture(GetScreenWidth()*renderScales[renderScale], GetScreenHeight()*renderScales[renderScale]);
+        }*/
+
+        // Update lights values
+        for (int i = 0; i < totalLights; i++)
+        {
+            // Check for light enabled input
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+            {
+                Ray ray = GetMouseRay(GetMousePosition(), camera);
+                if (CheckCollisionRaySphere(ray, lights[i].position, LIGHT_RADIUS)) lights[i].enabled = !lights[i].enabled;
+            }
+
+            // Send lights values to environment PBR shader
+            UpdateLightsValues(environment, lights[i]);
         }
+
+        // Update camera values and send them to all required shaders
+        Vector2 screenRes = { (float)GetScreenWidth()*renderScales[renderScale], (float)GetScreenHeight()*renderScales[renderScale] };
+        UpdateEnvironmentValues(environment, camera, screenRes);
+
+        // Send resolution values to post-processing shader
+        resolution[0] = screenRes.x;
+        resolution[1] = screenRes.y;
+        SetShaderValue(fxShader, fxResolutionLoc, resolution, 2);
 
         // Send current mode to PBR shader and enabled screen effects states to post-processing shader
         int shaderMode[1] = { renderMode };
@@ -375,29 +426,6 @@ int main()
         SetShaderValuei(fxShader, enabledBloomLoc, shaderMode, 1);
         shaderMode[0] = enabledVignette;
         SetShaderValuei(fxShader, enabledVignetteLoc, shaderMode, 1);
-
-        // Update current light position to PBR shader
-        for (int i = 0; i < MAX_LIGHTS; i++)
-        {
-            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
-            {
-                Ray ray = GetMouseRay(GetMousePosition(), camera);
-                if (CheckCollisionRaySphere(ray, lights[i].position, LIGHT_RADIUS)) lights[i].enabled = !lights[i].enabled;
-            }
-
-            UpdateLightsValues(environment, lights[i]);
-        }
-
-        // Update camera values and send them to all required shaders
-        UpdateCamera(&camera);
-        float cameraPos[3] = { camera.position.x, camera.position.y, camera.position.z };
-        SetShaderValue(environment.pbrShader, environment.pbrViewLoc, cameraPos, 3);
-
-        // Send resolution values to post-processing shader
-        resolution[0] = (float)GetScreenWidth()*renderScales[renderScale];
-        resolution[1] = (float)GetScreenHeight()*renderScales[renderScale];
-        SetShaderValue(fxShader, fxResolutionLoc, resolution, 2);
-        SetShaderValue(environment.skyShader, environment.skyResolutionLoc, resolution, 2);
         //--------------------------------------------------------------------------
 
         // Draw
@@ -419,7 +447,7 @@ int main()
                     if (drawWires) DrawModelWires(model, (Vector3){ 0, 0, 0 }, MODEL_SCALE, DARKGRAY);
 
                     // Draw light gizmos
-                    if (drawLights) for (unsigned int i = 0; (i < MAX_LIGHTS); i++)
+                    if (drawLights) for (unsigned int i = 0; (i < totalLights); i++)
                     {
                         Ray ray = GetMouseRay(GetMousePosition(), camera);
                         DrawLight(lights[i], CheckCollisionRaySphere(ray, lights[i].position, LIGHT_RADIUS));
@@ -438,7 +466,7 @@ int main()
 
             EndShaderMode();
 
-            if (drawUI) DrawInterface(GetScreenWidth(), GetScreenHeight());
+            if (drawUI) DrawInterface(GetScreenWidth(), GetScreenHeight(), scrolling, textures, 7);
 
             if (drawFPS) DrawFPS(10, 10);
 
@@ -484,6 +512,9 @@ void DrawLight(Light light, bool over)
         {
             DrawSphere(light.position, (over ? (LIGHT_RADIUS + LIGHT_OFFSET) : LIGHT_RADIUS), (light.enabled ? light.color : GRAY));
             DrawLine3D(light.position, light.target, (light.enabled ? light.color : DARKGRAY));
+            DrawCircle3D(light.target, LIGHT_RADIUS, (Vector3){ 1, 0, 0 }, 90, (light.enabled ? light.color : GRAY));
+            DrawCircle3D(light.target, LIGHT_RADIUS, (Vector3){ 0, 1, 0 }, 90, (light.enabled ? light.color : GRAY));
+            DrawCircle3D(light.target, LIGHT_RADIUS, (Vector3){ 0, 0, 1 }, 90, (light.enabled ? light.color : GRAY));
         } break;
         case LIGHT_POINT: DrawSphere(light.position, (over ? (LIGHT_RADIUS + LIGHT_OFFSET) : LIGHT_RADIUS), (light.enabled ? light.color : GRAY));
         default: break;

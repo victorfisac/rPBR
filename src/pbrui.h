@@ -39,15 +39,21 @@
 //----------------------------------------------------------------------------------
 // Defines
 //----------------------------------------------------------------------------------
-#define         UI_MENU_PADDING             15
-#define         UI_MENU_RIGHT_WIDTH         250
-#define         UI_MENU_TEXTURES_Y          250
-#define         UI_COLOR_BACKGROUND         (Color){ 5, 26, 36, 255 }
-#define         UI_COLOR_SECONDARY          (Color){ 255, 255, 255, 255 }
-#define         UI_COLOR_PRIMARY            (Color){ 234, 83, 77, 255 }
-#define         UI_TEXT_SIZE_H2             20
-#define         UI_TEXT_MATERIAL_TITLE      "Material properties"
-#define         UI_TEXT_TEXTURES_TITLE      "Textures"
+#define         MAX_TEXTURES                    7
+
+#define         UI_MENU_WIDTH                   225
+#define         UI_MENU_BORDER                  5
+#define         UI_MENU_PADDING                 15
+#define         UI_TEXTURES_PADDING             230
+#define         UI_TEXTURES_SIZE                180
+#define         UI_COLOR_BACKGROUND             (Color){ 5, 26, 36, 255 }
+#define         UI_COLOR_SECONDARY              (Color){ 245, 245, 245, 255 }
+#define         UI_COLOR_PRIMARY                (Color){ 234, 83, 77, 255 }
+#define         UI_TEXT_SIZE_H2                 20
+#define         UI_TEXT_SIZE_H3                 10
+#define         UI_TEXT_MATERIAL_TITLE          "Material properties"
+#define         UI_TEXT_TEXTURES_TITLE          "Textures"
+#define         UI_TEXT_DRAG_HERE               "DRAG TEXTURE HERE"
 
 //----------------------------------------------------------------------------------
 // Structs and enums
@@ -57,14 +63,24 @@
 //----------------------------------------------------------------------------------
 // Global Variables Definition
 //----------------------------------------------------------------------------------
-int matTitleLength = 0;
 int texTitleLength = 0;
+int titlesLength[MAX_TEXTURES] = { 0 };
+const char *textureTitles[MAX_TEXTURES] = {
+    "Albedo",
+    "Tangent normals",
+    "Metalness",
+    "Roughness",
+    "Ambient occlusion",
+    "Emission",
+    "Parallax"
+};
 
 //----------------------------------------------------------------------------------
 // Functions Declaration
 //----------------------------------------------------------------------------------
-void InitInterface(void);                       // Initialize interface texts lengths
-void DrawInterface(int width, int height);      // Draw interface based on current window dimensions
+void InitInterface(void);                                                                      // Initialize interface texts lengths
+void DrawInterface(int width, int height, int scroll, Texture2D *textures, int texCount);      // Draw interface based on current window dimensions
+void DrawTextureMap(int id, Texture2D texture, Vector2 position);                              // Draw interface PBR texture or alternative text
 
 //----------------------------------------------------------------------------------
 // Functions Definition
@@ -72,18 +88,51 @@ void DrawInterface(int width, int height);      // Draw interface based on curre
 // Initialize interface texts lengths
 void InitInterface(void)
 {
-    matTitleLength = MeasureText(UI_TEXT_MATERIAL_TITLE, UI_TEXT_SIZE_H2);
     texTitleLength = MeasureText(UI_TEXT_TEXTURES_TITLE, UI_TEXT_SIZE_H2);
+    titlesLength[0] = MeasureText(textureTitles[0], UI_TEXT_SIZE_H3);
+    titlesLength[1] = MeasureText(textureTitles[1], UI_TEXT_SIZE_H3);
+    titlesLength[2] = MeasureText(textureTitles[2], UI_TEXT_SIZE_H3);
+    titlesLength[3] = MeasureText(textureTitles[3], UI_TEXT_SIZE_H3);
+    titlesLength[4] = MeasureText(textureTitles[4], UI_TEXT_SIZE_H3);
+    titlesLength[5] = MeasureText(textureTitles[5], UI_TEXT_SIZE_H3);
+    titlesLength[6] = MeasureText(textureTitles[6], UI_TEXT_SIZE_H3);
 
     // TODO: work in progress
 }
 
 // Draw interface based on current window dimensions
-void DrawInterface(int width, int height)
+void DrawInterface(int width, int height, int scrolling, Texture2D *textures, int texCount)
 {
-    DrawRectangle(width - UI_MENU_RIGHT_WIDTH, 0, UI_MENU_RIGHT_WIDTH, height, UI_COLOR_BACKGROUND);
-    DrawText(UI_TEXT_MATERIAL_TITLE, width - UI_MENU_RIGHT_WIDTH + UI_MENU_RIGHT_WIDTH/2 - matTitleLength/2, UI_MENU_PADDING, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
-    DrawText(UI_TEXT_TEXTURES_TITLE, width - UI_MENU_RIGHT_WIDTH + UI_MENU_RIGHT_WIDTH/2 - texTitleLength/2, UI_MENU_TEXTURES_Y, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
+    int padding = scrolling;
 
-    // TODO: work in progress
+    // Draw interface right menu background
+    DrawRectangle(width - UI_MENU_WIDTH, 0, UI_MENU_WIDTH, height, UI_COLOR_BACKGROUND);
+    DrawRectangle(width - UI_MENU_WIDTH - UI_MENU_BORDER, 0, UI_MENU_BORDER, height, UI_COLOR_PRIMARY);
+
+    // Draw textures title
+    DrawText(UI_TEXT_TEXTURES_TITLE, width - UI_MENU_WIDTH + UI_MENU_WIDTH/2 - texTitleLength/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
+
+    // Draw textures
+    padding = scrolling + UI_MENU_PADDING*2 + UI_MENU_PADDING*2.5f + UI_MENU_PADDING*1.25f;
+    for (int i = 0; i < texCount; i++)
+    {
+        Vector2 pos = { width - UI_MENU_WIDTH + UI_MENU_WIDTH/2, padding + UI_MENU_WIDTH*0.375f - UI_TEXT_SIZE_H3/2 + i*UI_TEXTURES_PADDING };
+        DrawTextureMap(i, textures[i], pos);
+    }
+}
+
+// Draw interface PBR texture or alternative text
+void DrawTextureMap(int id, Texture2D texture, Vector2 position)
+{
+    Rectangle rect = { position.x - UI_TEXTURES_SIZE/2, position.y - UI_TEXTURES_SIZE/2, UI_TEXTURES_SIZE, UI_TEXTURES_SIZE };
+    DrawRectangle(rect.x - UI_MENU_BORDER, rect.y - UI_MENU_BORDER, rect.width + UI_MENU_BORDER*2, rect.height + UI_MENU_BORDER*2, UI_COLOR_PRIMARY);
+    DrawText(textureTitles[id], position.x - titlesLength[id]/2, position.y - UI_TEXT_SIZE_H3/2 - rect.height*0.6f, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
+
+    // Draw PBR texture or display help message
+    if (texture.id != 0) DrawTexturePro(texture, (Rectangle){ 0, 0, texture.width, texture.height }, rect, (Vector2){ 0, 0 }, 0, WHITE);
+    else
+    {
+        DrawRectangleRec(rect, UI_COLOR_SECONDARY);
+        DrawText(UI_TEXT_DRAG_HERE, position.x - MeasureText(UI_TEXT_DRAG_HERE, UI_TEXT_SIZE_H3)/2, position.y, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
+    }
 }

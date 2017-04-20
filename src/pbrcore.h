@@ -48,7 +48,6 @@
 //----------------------------------------------------------------------------------
 // Includes
 //----------------------------------------------------------------------------------
-#include <stdio.h>                          // Required for: printf()
 #include <math.h>                           // Required for: pow()
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -101,14 +100,12 @@ typedef struct Environment {
     unsigned int irradianceId;
     unsigned int prefilterId;
     unsigned int brdfId;
-
     Shader pbrShader;
     Shader cubeShader;
     Shader skyShader;
     Shader irradianceShader;
     Shader prefilterShader;
     Shader brdfShader;
-
     int pbrViewLoc;
     int skyViewLoc;
     int skyResolutionLoc;
@@ -117,35 +114,32 @@ typedef struct Environment {
 typedef struct MaterialPBR {
     Texture2D albedoTex;
     Texture2D normalsTex;
-    Texture2D metallicTex;
+    Texture2D metalnessTex;
     Texture2D roughnessTex;
     Texture2D aoTex;
     Texture2D emissionTex;
     Texture2D heightTex;
-
     bool useAlbedoMap;
     bool useNormalMap;
-    bool useMetallicMap;
+    bool useMetalnessMap;
     bool useRoughnessMap;
     bool useOcclusionMap;
     bool useEmissionMap;
     bool useParallaxMap;
-
     Color albedoColor;
     Color normalsColor;
-    Color metallicColor;
+    Color metalColor;
     Color roughnessColor;
     Color aoColor;
     Color emissionColor;
     Color heightColor;
-
     Environment env;
 } MaterialPBR;
 
 typedef enum TypePBR {
     PBR_ALBEDO,
     PBR_NORMALS,
-    PBR_METALLIC,
+    PBR_METALNESS,
     PBR_ROUGHNESS,
     PBR_AO,
     PBR_EMISSION,
@@ -160,13 +154,14 @@ static int lightsCount = 0;                     // Current amount of created lig
 //----------------------------------------------------------------------------------
 // Functions Declaration
 //----------------------------------------------------------------------------------
-MaterialPBR SetupMaterialPBR(Environment env, Color albedo, int metallic, int roughness);                                       // Set up PBR environment shader constant values
+MaterialPBR SetupMaterialPBR(Environment env, Color albedo, int metalness, int roughness);                                      // Set up PBR environment shader constant values
 void SetMaterialTexturePBR(MaterialPBR *mat, TypePBR type, Texture2D texture);                                                  // Set texture to PBR material
 Light CreateLight(int type, Vector3 pos, Vector3 targ, Color color, Environment env);                                           // Defines a light and get locations from environment PBR shader
 Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianceSize, int prefilterSize, int brdfSize);        // Load an environment cubemap, irradiance, prefilter and PBR scene
 
 int GetLightsCount(void);                                                                                                       // Get the current amount of created lights
 void UpdateLightsValues(Environment env, Light light);                                                                          // Send to environment PBR shader lights values
+void UpdateEnvironmentValues(Environment env, Camera camera, Vector2 res);                                                      // Send to environment PBR shader camera view and resolution values
 
 void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotationAxis, float rotationAngle, Vector3 scale);    // Draw a model using physically based rendering
 void DrawSkybox(Environment environment, int mode, Camera camera);                                                              // Draw a cube skybox using environment cube map
@@ -180,13 +175,13 @@ void UnloadEnvironment(Environment env);                                        
 // Functions Definition
 //----------------------------------------------------------------------------------
 // Set up PBR environment shader constant values
-MaterialPBR SetupMaterialPBR(Environment env, Color albedo, int metallic, int roughness)
+MaterialPBR SetupMaterialPBR(Environment env, Color albedo, int metalness, int roughness)
 {
     MaterialPBR mat;
 
     mat.albedoColor = albedo;
     mat.normalsColor = (Color){ 128, 128, 255, 255 };
-    mat.metallicColor = (Color){ metallic, 0, 0, 0 };
+    mat.metalColor = (Color){ metalness, 0, 0, 0 };
     mat.roughnessColor = (Color){ roughness, 0, 0, 0 };
     mat.aoColor = (Color){ 255, 255, 255, 255 };
     mat.heightColor = (Color){ 0, 0, 0, 0 };
@@ -198,13 +193,11 @@ MaterialPBR SetupMaterialPBR(Environment env, Color albedo, int metallic, int ro
     glUseProgram(mat.env.pbrShader.id);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "albedo.sampler"), 3);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "normals.sampler"), 4);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "metallic.sampler"), 5);
+    glUniform1i(GetShaderLocation(mat.env.pbrShader, "metalness.sampler"), 5);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "roughness.sampler"), 6);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "ao.sampler"), 7);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "emission.sampler"), 8);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "height.sampler"), 9);
-
-    printf("INFO: [PBR] PBR material set up successfully\n");
 
     return mat;
 }
@@ -227,10 +220,10 @@ void SetMaterialTexturePBR(MaterialPBR *mat, TypePBR type, Texture2D texture)
             mat->normalsTex = texture;
             mat->useNormalMap = true;
         } break;
-        case PBR_METALLIC:
+        case PBR_METALNESS:
         {
-            mat->metallicTex = texture;
-            mat->useMetallicMap = true;
+            mat->metalnessTex = texture;
+            mat->useMetalnessMap = true;
         } break;
         case PBR_ROUGHNESS:
         {
@@ -542,8 +535,6 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     // Reset viewport dimensions to default
     glViewport(0, 0, GetScreenWidth(), GetScreenHeight());
 
-    printf("INFO: [PBR] loaded HDR environment successfully\n");
-
     return env;
 }
 
@@ -556,14 +547,33 @@ int GetLightsCount(void)
 // Send to environment PBR shader lights values
 void UpdateLightsValues(Environment env, Light light)
 {
+    // Send to shader light enabled state and type
     glUniform1i(light.enabledLoc, light.enabled);
     glUniform1i(light.typeLoc, light.type);
+
+    // Send to shader light position values
     float position[3] = { light.position.x, light.position.y, light.position.z };
     SetShaderValue(env.pbrShader, light.posLoc, position, 3);
+
+    // Send to shader light target position values
     float target[3] = { light.target.x, light.target.y, light.target.z };
     SetShaderValue(env.pbrShader, light.targetLoc, target, 3);
+
+    // Send to shader light color values
     float diff[4] = { (float)light.color.r/(float)255, (float)light.color.g/(float)255, (float)light.color.b/(float)255, (float)light.color.a/(float)255 };
     SetShaderValue(env.pbrShader, light.colorLoc, diff, 4);
+}
+
+// Send to environment PBR shader camera view and resolution values
+void UpdateEnvironmentValues(Environment env, Camera camera, Vector2 res)
+{
+    // Send to shader camera view position
+    float cameraPos[3] = { camera.position.x, camera.position.y, camera.position.z };
+    SetShaderValue(env.pbrShader, env.pbrViewLoc, cameraPos, 3);
+
+    // Send to shader screen resolution
+    float resolution[2] = { res.x, res.y };
+    SetShaderValue(env.skyShader, env.skyResolutionLoc, resolution, 2);
 }
 
 // Draw a model using physically based rendering
@@ -577,8 +587,8 @@ void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotati
     SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "albedo.color"), shaderAlbedo, 3);
     float shaderNormals[3] = { (float)mat.normalsColor.r/(float)255, (float)mat.normalsColor.g/(float)255, (float)mat.normalsColor.b/(float)255 };
     SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "normals.color"), shaderNormals, 3);
-    float shaderMetallic[3] = { (float)mat.metallicColor.r/(float)255, (float)mat.metallicColor.g/(float)255, (float)mat.metallicColor.b/(float)255 };
-    SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "metallic.color"), shaderMetallic, 3);
+    float shaderMetalness[3] = { (float)mat.metalColor.r/(float)255, (float)mat.metalColor.g/(float)255, (float)mat.metalColor.b/(float)255 };
+    SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "metalness.color"), shaderMetalness, 3);
     float shaderRoughness[3] = { 1.0f - (float)mat.roughnessColor.r/(float)255, 1.0f - (float)mat.roughnessColor.g/(float)255, 1.0f - (float)mat.roughnessColor.b/(float)255 };
     SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "roughness.color"), shaderRoughness, 3);
     float shaderAo[3] = { (float)mat.aoColor.r/(float)255, (float)mat.aoColor.g/(float)255, (float)mat.aoColor.b/(float)255 };
@@ -592,7 +602,7 @@ void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotati
     glUseProgram(mat.env.pbrShader.id);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "albedo.useSampler"), mat.useAlbedoMap);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "normals.useSampler"), mat.useNormalMap);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "metallic.useSampler"), mat.useMetallicMap);
+    glUniform1i(GetShaderLocation(mat.env.pbrShader, "metalness.useSampler"), mat.useMetalnessMap);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "roughness.useSampler"), mat.useRoughnessMap);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "ao.useSampler"), mat.useOcclusionMap);
     glUniform1i(GetShaderLocation(mat.env.pbrShader, "emission.useSampler"), mat.useEmissionMap);
@@ -631,9 +641,9 @@ void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotati
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
-    if (mat.useMetallicMap)
+    if (mat.useMetalnessMap)
     {
-        // Disable and bind metallic map
+        // Disable and bind metalness map
         glActiveTexture(GL_TEXTURE5);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
@@ -673,11 +683,11 @@ void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotati
         glBindTexture(GL_TEXTURE_2D, mat.normalsTex.id);
     }
 
-    if (mat.useMetallicMap)
+    if (mat.useMetalnessMap)
     {
-        // Enable and bind metallic map
+        // Enable and bind metalness map
         glActiveTexture(GL_TEXTURE5);
-        glBindTexture(GL_TEXTURE_2D, mat.metallicTex.id);
+        glBindTexture(GL_TEXTURE_2D, mat.metalnessTex.id);
     }
 
     if (mat.useRoughnessMap)
@@ -737,9 +747,9 @@ void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotati
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
-    if (mat.useMetallicMap)
+    if (mat.useMetalnessMap)
     {
-        // Disable and bind metallic map
+        // Disable and bind metalness map
         glActiveTexture(GL_TEXTURE5);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
@@ -913,13 +923,11 @@ void UnloadMaterialPBR(MaterialPBR mat)
 {
     if (mat.useAlbedoMap) UnloadTexture(mat.albedoTex);
     if (mat.useNormalMap) UnloadTexture(mat.normalsTex);
-    if (mat.useMetallicMap) UnloadTexture(mat.metallicTex);
+    if (mat.useMetalnessMap) UnloadTexture(mat.metalnessTex);
     if (mat.useRoughnessMap) UnloadTexture(mat.roughnessTex);
     if (mat.useOcclusionMap) UnloadTexture(mat.aoTex);
     if (mat.useEmissionMap) UnloadTexture(mat.emissionTex);
     if (mat.useParallaxMap) UnloadTexture(mat.heightTex);
-
-    printf("INFO: [PBR] unloaded PBR material textures successfully\n");
 }
 
 // Unload environment loaded shaders and dynamic textures
@@ -938,6 +946,4 @@ void UnloadEnvironment(Environment env)
     glDeleteTextures(1, &env.irradianceId);
     glDeleteTextures(1, &env.prefilterId);
     glDeleteTextures(1, &env.brdfId);
-
-    printf("INFO: [PBR] unloaded environment successfully\n");
 }
