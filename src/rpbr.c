@@ -51,8 +51,8 @@
 //----------------------------------------------------------------------------------
 #define         WINDOW_TITLE                "rPBR - Physically based rendering 3D model viewer"
 #define         PATH_ICON                   "resources/textures/rpbr_icon.png"
-#define         WINDOW_WIDTH                1280
-#define         WINDOW_HEIGHT               720
+#define         WINDOW_WIDTH                1440
+#define         WINDOW_HEIGHT               810
 
 #define         PATH_TEXTURES_HDR           "resources/textures/hdr/pinetree.hdr"
 
