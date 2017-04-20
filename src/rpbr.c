@@ -72,6 +72,7 @@
 #define         MAX_LIGHTS                  4                   // Max lights supported by shader
 #define         MODEL_SCALE                 1.75f               // Model scale transformation for rendering
 #define         MODEL_OFFSET                0.45f               // Distance between models for rendering
+#define         CAMERA_FOV                  60.0f               // Camera global field of view
 #define         ROTATION_SPEED              0.0f                // Models rotation speed
 #define         LIGHT_SPEED                 0.1f                // Light rotation input speed
 #define         LIGHT_DISTANCE              3.5f                // Light distance from center of world
@@ -140,7 +141,7 @@ int main()
     // Define the camera to look into our 3d world, its mode and model drawing position
     float rotationAngle = 0.0f;
     Vector3 rotationAxis = { 0.0f, 1.0f, 0.0f };
-    Camera camera = {{ 3.5f, 3.0f, 3.5f }, { 0.0f, 0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 60.0f };
+    Camera camera = {{ 3.5f, 3.0f, 3.5f }, { 0.0f, 0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f }, CAMERA_FOV };
     SetCameraMode(camera, cameraMode);
 
     // Define environment attributes
@@ -287,36 +288,26 @@ int main()
         {
             rotationAngle = 0.0f;
             cameraMode = ((cameraMode == CAMERA_FREE) ? CAMERA_ORBITAL : CAMERA_FREE);
-
-            if (cameraMode == CAMERA_FREE)
-            {
-                camera.position = (Vector3){ 3.5f, 3.0f, 3.5f };
-                camera.target = (Vector3){ 0.0f, 0.5f, 0.0f };
-            }
-            else
-            {
-                camera.position = (Vector3){ 3.5f, 2.5f, 3.5f };
-                camera.target = (Vector3){ 0.0f, 1.0f, 0.0f };
-            }
-
+            camera.position = (Vector3){ 3.5f, ((cameraMode == CAMERA_FREE) ? 3.0f : 2.5f), 3.5f };
+            camera.target = (Vector3){ 0.0f, ((cameraMode == CAMERA_FREE) ? 0.5f : 1.0f), 0.0f };
             camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
-            camera.fovy = 60.0f;
-            
+            camera.fovy = CAMERA_FOV;
             SetCameraMode(camera, cameraMode);
         }
 
         // Check for scene camera reset input
         if (IsKeyPressed(KEY_R))
         {
+            // Reset rotation and camera values
             rotationAngle = 0.0f;
             camera.position = (Vector3){ 3.5f, 3.0f, 3.5f };
             camera.target = (Vector3){ 0.0f, 0.5f, 0.0f };
             camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
-            camera.fovy = 45.0f;
+            camera.fovy = CAMERA_FOV;
             SetCameraMode(camera, CAMERA_FREE);
 
+            // Reset lights positions
             lightAngle = 0.0f;
-
             for (int i = 0; i < lightsCount; i++)
             {
                 float angle = lightAngle + 90*i;
@@ -328,10 +319,12 @@ int main()
         // Check for lights movement input
         if (IsMouseButtonDown(MOUSE_RIGHT_BUTTON))
         {
+            // Update mouse delta position
             lastMousePosX = mousePosX;
             mousePosX = GetMouseX();
-            lightAngle += (mousePosX - lastMousePosX)*LIGHT_SPEED;
 
+            // Update lights positions based on delta position with an orbital movement
+            lightAngle += (mousePosX - lastMousePosX)*LIGHT_SPEED;
             for (int i = 0; i < lightsCount; i++)
             {
                 float angle = lightAngle + 90*i;
