@@ -39,7 +39,7 @@ in vec3 fragBinormal;
 // Input material values
 uniform MaterialProperty albedo;
 uniform MaterialProperty normals;
-uniform MaterialProperty metallic;
+uniform MaterialProperty metalness;
 uniform MaterialProperty roughness;
 uniform MaterialProperty ao;
 uniform MaterialProperty emission;
@@ -182,7 +182,7 @@ void main()
 
     // Fetch material values from texture sampler or color attributes
     vec3 color = pow(ComputeMaterialProperty(albedo), vec3(2.2));
-    vec3 metal = ComputeMaterialProperty(metallic);
+    vec3 metal = ComputeMaterialProperty(metalness);
     vec3 rough = ComputeMaterialProperty(roughness);
     vec3 emiss = ComputeMaterialProperty(emission);
     vec3 occlusion = ComputeMaterialProperty(ao);
@@ -271,7 +271,7 @@ void main()
     vec3 fragmentColor = ambient + Lo + emiss;                              // Physically Based Rendering
     if (renderMode == 1) fragmentColor = color;                             // Albedo
     else if (renderMode == 2) fragmentColor = normal;                       // Normals
-    else if (renderMode == 3) fragmentColor = metal;                        // Metallic
+    else if (renderMode == 3) fragmentColor = metal;                        // Metalness
     else if (renderMode == 4) fragmentColor = rough;                        // Roughness
     else if (renderMode == 5) fragmentColor = occlusion;                    // Ambient Occlusion
     else if (renderMode == 6) fragmentColor = emiss;                        // Emission
