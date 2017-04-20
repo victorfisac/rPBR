@@ -1,6 +1,6 @@
 /***********************************************************************************
 *
-*   rPBR 1.0 - Physically based rendering viewer for raylib
+*   rPBR - Physically based rendering viewer for raylib
 *
 *   FEATURES:
 *       - Load OBJ models and texture images in real-time by drag and drop.
@@ -43,6 +43,9 @@
 //----------------------------------------------------------------------------------
 // Defines
 //----------------------------------------------------------------------------------
+#define         WINDOW_TITLE                "rPBR - Physically based rendering 3D model viewer"                
+#define         PATH_ICON                   "resources/textures/rpbr_icon.png"
+
 #define         PATH_TEXTURES_HDR           "resources/textures/hdr/pinetree.hdr"
 
 #define         PATH_MODEL                  "resources/models/cerberus.obj"
@@ -94,7 +97,11 @@ int main()
 
     // Enable Multi Sampling Anti Aliasing 4x (if available)
     SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT);
-    InitWindow(screenWidth, screenHeight, "rPBR - Physically Based Rendering Viewer");
+    InitWindow(screenWidth, screenHeight, WINDOW_TITLE);
+
+    // Change default window icon
+    Image icon = LoadImage(PATH_ICON);
+    SetWindowIcon(icon);
 
     // Define render settings states
     RenderMode mode = DEFAULT;
@@ -419,6 +426,7 @@ int main()
     UnloadEnvironment(environment);
 
     // Unload other resources
+    UnloadImage(icon);
     UnloadRenderTexture(fxTarget);
     UnloadShader(fxShader);
 
