@@ -265,11 +265,22 @@ int main()
         if (IsKeyPressed(KEY_C))
         {
             rotationAngle = 0.0f;
-            camera.position = (Vector3){ 3.5f, 3.0f, 3.5f };
-            camera.target = (Vector3){ 0.0f, 0.5f, 0.0f };
+            cameraMode = ((cameraMode == CAMERA_FREE) ? CAMERA_ORBITAL : CAMERA_FREE);
+
+            if (cameraMode == CAMERA_FREE)
+            {
+                camera.position = (Vector3){ 3.5f, 3.0f, 3.5f };
+                camera.target = (Vector3){ 0.0f, 0.5f, 0.0f };
+            }
+            else
+            {
+                camera.position = (Vector3){ 3.5f, 2.5f, 3.5f };
+                camera.target = (Vector3){ 0.0f, 1.0f, 0.0f };
+            }
+
             camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
             camera.fovy = 60.0f;
-            cameraMode = ((cameraMode == CAMERA_FREE) ? CAMERA_ORBITAL : CAMERA_FREE);
+            
             SetCameraMode(camera, cameraMode);
         }
 
