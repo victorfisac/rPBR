@@ -9,6 +9,12 @@
 *       - Use interface to adjust lighting, material and screen parameters (space - display/hide interface).
 *       - Press F12 or use Screenshot button to capture a screenshot and save it as PNG file.
 *
+*   Use the following line to compile:
+*
+*   gcc -o $(NAME_PART).exe $(FILE_NAME) -s icon\rpbr_icon -IC:\raylib\raylib\src -LC:\raylib\raylib\release\win32
+*   -LC:\raylib\raylib\src\external\glfw3\lib\win32 -LC:\raylib\raylib\src\external\openal_soft\lib\win32\ -lraylib
+*   -lglfw3 -lopengl32 -lgdi32 -lopenal32 -lwinmm -std=c99 -Wl,--subsystem,windows -Wl,-allow-multiple-definition
+*
 *   LICENSE: zlib/libpng
 *
 *   rPBR is licensed under an unmodified zlib/libpng license, which is an OSI-certified,
@@ -60,30 +66,37 @@
 #define         PATH_SHADERS_POSTFX_VS      "resources/shaders/postfx.vs"
 #define         PATH_SHADERS_POSTFX_FS      "resources/shaders/postfx.fs"
 
-#define         MAX_LIGHTS                  4               // Max lights supported by shader
-#define         MODEL_SCALE                 1.75f           // Model scale transformation for rendering
-#define         MODEL_OFFSET                0.45f           // Distance between models for rendering
-#define         ROTATION_SPEED              0.0f            // Models rotation speed
-#define         LIGHT_SPEED                 0.1f            // Light rotation input speed
-#define         LIGHT_DISTANCE              3.5f            // Light distance from center of world
-#define         LIGHT_HEIGHT                1.0f            // Light height from center of world
-#define         LIGHT_RADIUS                0.05f           // Light gizmo drawing radius
-#define         LIGHT_OFFSET                0.03f           // Light gizmo drawing radius when mouse is over
+#define         MAX_RENDER_SCALES           3                   // Max number of available render scales (0.5X, 1X, 2X)
+#define         MAX_LIGHTS                  4                   // Max lights supported by shader
+#define         MODEL_SCALE                 1.75f               // Model scale transformation for rendering
+#define         MODEL_OFFSET                0.45f               // Distance between models for rendering
+#define         ROTATION_SPEED              0.0f                // Models rotation speed
+#define         LIGHT_SPEED                 0.1f                // Light rotation input speed
+#define         LIGHT_DISTANCE              3.5f                // Light distance from center of world
+#define         LIGHT_HEIGHT                1.0f                // Light height from center of world
+#define         LIGHT_RADIUS                0.05f               // Light gizmo drawing radius
+#define         LIGHT_OFFSET                0.03f               // Light gizmo drawing radius when mouse is over
 
-#define         CUBEMAP_SIZE                1024            // Cubemap texture size
-#define         IRRADIANCE_SIZE             32              // Irradiance map from cubemap texture size
-#define         PREFILTERED_SIZE            256             // Prefiltered HDR environment map texture size
-#define         BRDF_SIZE                   512             // BRDF LUT texture map size
+#define         CUBEMAP_SIZE                1024                // Cubemap texture size
+#define         IRRADIANCE_SIZE             32                  // Irradiance map from cubemap texture size
+#define         PREFILTERED_SIZE            256                 // Prefiltered HDR environment map texture size
+#define         BRDF_SIZE                   512                 // BRDF LUT texture map size
 
 //----------------------------------------------------------------------------------
-// Structs and enums
+// Types and Structures Definition
 //----------------------------------------------------------------------------------
 typedef enum { DEFAULT, ALBEDO, NORMALS, METALLIC, ROUGHNESS, AMBIENT_OCCLUSION, EMISSION, LIGHTING, FRESNEL, IRRADIANCE, REFLECTION } RenderMode;
+typedef enum { RENDER_SCALE_0_5X, RENDER_SCALE_1X, RENDER_SCALE_2X } RenderScale;
+
+//----------------------------------------------------------------------------------
+// Global Variables Definition
+//----------------------------------------------------------------------------------
+float renderScales[MAX_RENDER_SCALES] = { 0.5f, 1.0f, 2.0f };   // Availables render scales
 
 //----------------------------------------------------------------------------------
 // Function Declarations
 //----------------------------------------------------------------------------------
-void DrawLight(Light light, bool over);                     // Draw a light gizmo based on light attributes
+void DrawLight(Light light, bool over);                         // Draw a light gizmo based on light attributes
 
 //----------------------------------------------------------------------------------
 // Main program
@@ -96,7 +109,7 @@ int main()
     int screenHeight = 720;
 
     // Enable Multi Sampling Anti Aliasing 4x (if available)
-    SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT);
+    SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
     InitWindow(screenWidth, screenHeight, WINDOW_TITLE);
 
     // Change default window icon
@@ -104,14 +117,16 @@ int main()
     SetWindowIcon(icon);
 
     // Define render settings states
-    RenderMode mode = DEFAULT;
+    RenderMode renderMode = DEFAULT;
+    RenderScale renderScale = RENDER_SCALE_2X;
     CameraMode cameraMode = CAMERA_FREE;
     BackgroundMode backMode = BACKGROUND_SKY;
     bool drawGrid = false;
     bool drawWires = false;
     bool drawLights = false;
     bool drawSkybox = true;
-    bool drawFPS = false;
+    bool drawFPS = true;
+    bool drawUI = false;
 
     // Define post-processing effects enabled states
     bool enabledFxaa = true;
@@ -163,14 +178,19 @@ int main()
     SetMaterialTexturePBR(&matPBR, PBR_HEIGHT, LoadTexture(PATH_TEXTURES_HEIGHT));
     SetTextureFilter(matPBR.heightTex, FILTER_BILINEAR);
 #endif
+    Shader fxShader = LoadShader(PATH_SHADERS_POSTFX_VS, PATH_SHADERS_POSTFX_FS);
 
     // Set up materials and lighting
     Material material = { 0 };
     material.shader = matPBR.env.pbrShader;
     model.material = material;
 
-    // Get PBR shader locations
+    // Get shaders required locations
     int shaderModeLoc = GetShaderLocation(model.material.shader, "renderMode");
+    int fxResolutionLoc = GetShaderLocation(fxShader, "resolution");
+    int enabledFxaaLoc = GetShaderLocation(fxShader, "enabledFxaa");
+    int enabledBloomLoc = GetShaderLocation(fxShader, "enabledBloom");
+    int enabledVignetteLoc = GetShaderLocation(fxShader, "enabledVignette");
 
     // Define lights attributes
     int lightsCount = 0;
@@ -181,18 +201,12 @@ int main()
     lights[lightsCount] = CreateLight(LIGHT_DIRECTIONAL, (Vector3){ 0, LIGHT_HEIGHT*2.0f, -LIGHT_DISTANCE }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 255, 0, 255, 255 }, model.material.shader, &lightsCount);
 
     // Create a render texture for antialiasing post-processing effect and initialize Bloom shader
-    RenderTexture2D fxTarget = LoadRenderTexture(screenWidth, screenHeight);
-    Shader fxShader = LoadShader(PATH_SHADERS_POSTFX_VS, PATH_SHADERS_POSTFX_FS);
-
-    // Get post-processing shader locations
-    int enabledFxaaLoc = GetShaderLocation(fxShader, "enabledFxaa");
-    int enabledBloomLoc = GetShaderLocation(fxShader, "enabledBloom");
-    int enabledVignetteLoc = GetShaderLocation(fxShader, "enabledVignette");
+    RenderTexture2D fxTarget = LoadRenderTexture(screenWidth*renderScales[renderScale], screenHeight*renderScales[renderScale]);
 
     // Send resolution values to post-processing shader
-    float resolution[2] = { (float)screenWidth, (float)screenHeight };
-    SetShaderValue(fxShader, GetShaderLocation(fxShader, "resolution"), resolution, 2);
-    SetShaderValue(environment.skyShader, GetShaderLocation(environment.skyShader, "resolution"), resolution, 2);
+    float resolution[2] = { (float)screenWidth*renderScales[renderScale], (float)screenHeight*renderScales[renderScale] };
+    SetShaderValue(fxShader, fxResolutionLoc, resolution, 2);
+    SetShaderValue(environment.skyShader, environment.skyResolutionLoc, resolution, 2);
 
     // Set our game to run at 60 frames-per-second
     SetTargetFPS(60);
@@ -212,12 +226,14 @@ int main()
             int fileCount = 0;
             char **droppedFiles = GetDroppedFiles(&fileCount);
 
-            // Check extensions
+            // Check file extensions for drag-and-drop
             if (IsFileExtension(droppedFiles[0], ".hdr"))
             {
                 UnloadEnvironment(environment);
                 environment = LoadEnvironment(droppedFiles[0], CUBEMAP_SIZE, IRRADIANCE_SIZE, PREFILTERED_SIZE, BRDF_SIZE);
-                SetShaderValue(environment.skyShader, GetShaderLocation(environment.skyShader, "resolution"), resolution, 2);
+                resolution[0] = (float)GetScreenWidth()*renderScales[renderScale];
+                resolution[1] = (float)GetScreenHeight()*renderScales[renderScale];
+                SetShaderValue(environment.skyShader, environment.skyResolutionLoc, resolution, 2);
                 UnloadMaterialPBR(matPBR);
                 matPBR = SetupMaterialPBR(environment, (Color){ 255 }, 255, 255);
             #if defined(PATH_TEXTURES_ALBEDO)
@@ -264,8 +280,8 @@ int main()
             ClearDroppedFiles();
         }
 
-        // Check for capture screenshot input
-        if (IsKeyPressed(KEY_P)) TakeScreenshot();
+        // Check for display UI switch states
+        if (IsKeyPressed(KEY_SPACE)) drawUI = !drawUI;
 
         // Check for switch camera mode input
         if (IsKeyPressed(KEY_C))
@@ -327,20 +343,34 @@ int main()
         else mousePosX = GetMouseX();
 
         // Check for render mode inputs
-        if (IsKeyPressed(KEY_ONE)) mode = DEFAULT;
-        else if (IsKeyPressed(KEY_TWO)) mode = ALBEDO;
-        else if (IsKeyPressed(KEY_THREE)) mode = NORMALS;
-        else if (IsKeyPressed(KEY_FOUR)) mode = METALLIC;
-        else if (IsKeyPressed(KEY_FIVE)) mode = ROUGHNESS;
-        else if (IsKeyPressed(KEY_SIX)) mode = AMBIENT_OCCLUSION;
-        else if (IsKeyPressed(KEY_SEVEN)) mode = EMISSION;
-        else if (IsKeyPressed(KEY_EIGHT)) mode = LIGHTING;
-        else if (IsKeyPressed(KEY_NINE)) mode = FRESNEL;
-        else if (IsKeyPressed(KEY_ZERO)) mode = IRRADIANCE;
-        else if (IsKeyPressed(46)) mode = REFLECTION;     // KEY: .
+        if (IsKeyPressed(KEY_ONE)) renderMode = DEFAULT;
+        else if (IsKeyPressed(KEY_TWO)) renderMode = ALBEDO;
+        else if (IsKeyPressed(KEY_THREE)) renderMode = NORMALS;
+        else if (IsKeyPressed(KEY_FOUR)) renderMode = METALLIC;
+        else if (IsKeyPressed(KEY_FIVE)) renderMode = ROUGHNESS;
+        else if (IsKeyPressed(KEY_SIX)) renderMode = AMBIENT_OCCLUSION;
+        else if (IsKeyPressed(KEY_SEVEN)) renderMode = EMISSION;
+        else if (IsKeyPressed(KEY_EIGHT)) renderMode = LIGHTING;
+        else if (IsKeyPressed(KEY_NINE)) renderMode = FRESNEL;
+        else if (IsKeyPressed(KEY_ZERO)) renderMode = IRRADIANCE;
+        else if (IsKeyPressed('.')) renderMode = REFLECTION;
+
+        // Check for render scale inputs
+        if (IsKeyPressed(KEY_Y) && (renderScale < RENDER_SCALE_2X))
+        {
+            renderScale++;
+            UnloadRenderTexture(fxTarget);
+            fxTarget = LoadRenderTexture(screenWidth*renderScales[renderScale], screenHeight*renderScales[renderScale]);
+        }
+        else if (IsKeyPressed(KEY_H) && (renderScale > RENDER_SCALE_0_5X))
+        {
+            renderScale--;
+            UnloadRenderTexture(fxTarget);
+            fxTarget = LoadRenderTexture(screenWidth*renderScales[renderScale], screenHeight*renderScales[renderScale]);
+        }
 
         // Send current mode to PBR shader and enabled screen effects states to post-processing shader
-        int shaderMode[1] = { mode };
+        int shaderMode[1] = { renderMode };
         SetShaderValuei(model.material.shader, shaderModeLoc, shaderMode, 1);
         shaderMode[0] = enabledFxaa;
         SetShaderValuei(fxShader, enabledFxaaLoc, shaderMode, 1);
@@ -365,6 +395,12 @@ int main()
         UpdateCamera(&camera);
         float cameraPos[3] = { camera.position.x, camera.position.y, camera.position.z };
         SetShaderValue(environment.pbrShader, environment.pbrViewLoc, cameraPos, 3);
+
+        // Send resolution values to post-processing shader
+        resolution[0] = (float)GetScreenWidth()*renderScales[renderScale];
+        resolution[1] = (float)GetScreenHeight()*renderScales[renderScale];
+        SetShaderValue(fxShader, fxResolutionLoc, resolution, 2);
+        SetShaderValue(environment.skyShader, environment.skyResolutionLoc, resolution, 2);
         //--------------------------------------------------------------------------
 
         // Draw
@@ -401,7 +437,7 @@ int main()
 
             BeginShaderMode(fxShader);
 
-                DrawTextureRec(fxTarget.texture, (Rectangle){ 0, 0, fxTarget.texture.width, -fxTarget.texture.height }, (Vector2){ 0, 0 }, WHITE);
+                DrawTexturePro(fxTarget.texture, (Rectangle){ 0, 0, fxTarget.texture.width, -fxTarget.texture.height }, (Rectangle){ 0, 0, GetScreenWidth(), GetScreenHeight() }, (Vector2){ 0, 0 }, 0.0f, WHITE);
 
             EndShaderMode();
 
