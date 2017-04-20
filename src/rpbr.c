@@ -49,8 +49,10 @@
 //----------------------------------------------------------------------------------
 // Defines
 //----------------------------------------------------------------------------------
-#define         WINDOW_TITLE                "rPBR - Physically based rendering 3D model viewer"                
+#define         WINDOW_TITLE                "rPBR - Physically based rendering 3D model viewer"
 #define         PATH_ICON                   "resources/textures/rpbr_icon.png"
+#define         WINDOW_WIDTH                1280
+#define         WINDOW_HEIGHT               720
 
 #define         PATH_TEXTURES_HDR           "resources/textures/hdr/pinetree.hdr"
 
@@ -105,12 +107,9 @@ int main()
 {
     // Initialization
     //------------------------------------------------------------------------------
-    int screenWidth = 1280;
-    int screenHeight = 720;
-
     // Enable Multi Sampling Anti Aliasing 4x (if available)
     SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
-    InitWindow(screenWidth, screenHeight, WINDOW_TITLE);
+    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
 
     // Change default window icon
     Image icon = LoadImage(PATH_ICON);
@@ -201,10 +200,10 @@ int main()
     lights[lightsCount] = CreateLight(LIGHT_DIRECTIONAL, (Vector3){ 0, LIGHT_HEIGHT*2.0f, -LIGHT_DISTANCE }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 255, 0, 255, 255 }, model.material.shader, &lightsCount);
 
     // Create a render texture for antialiasing post-processing effect and initialize Bloom shader
-    RenderTexture2D fxTarget = LoadRenderTexture(screenWidth*renderScales[renderScale], screenHeight*renderScales[renderScale]);
+    RenderTexture2D fxTarget = LoadRenderTexture(GetScreenWidth()*renderScales[renderScale], GetScreenHeight()*renderScales[renderScale]);
 
     // Send resolution values to post-processing shader
-    float resolution[2] = { (float)screenWidth*renderScales[renderScale], (float)screenHeight*renderScales[renderScale] };
+    float resolution[2] = { (float)GetScreenWidth()*renderScales[renderScale], (float)GetScreenHeight()*renderScales[renderScale] };
     SetShaderValue(fxShader, fxResolutionLoc, resolution, 2);
     SetShaderValue(environment.skyShader, environment.skyResolutionLoc, resolution, 2);
 
@@ -360,13 +359,13 @@ int main()
         {
             renderScale++;
             UnloadRenderTexture(fxTarget);
-            fxTarget = LoadRenderTexture(screenWidth*renderScales[renderScale], screenHeight*renderScales[renderScale]);
+            fxTarget = LoadRenderTexture(GetScreenWidth()*renderScales[renderScale], GetScreenHeight()*renderScales[renderScale]);
         }
         else if (IsKeyPressed(KEY_H) && (renderScale > RENDER_SCALE_0_5X))
         {
             renderScale--;
             UnloadRenderTexture(fxTarget);
-            fxTarget = LoadRenderTexture(screenWidth*renderScales[renderScale], screenHeight*renderScales[renderScale]);
+            fxTarget = LoadRenderTexture(GetScreenWidth()*renderScales[renderScale], GetScreenHeight()*renderScales[renderScale]);
         }
 
         // Send current mode to PBR shader and enabled screen effects states to post-processing shader
