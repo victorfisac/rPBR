@@ -304,11 +304,12 @@ int main()
         {
             // Reset rotation and camera values
             rotationAngle = 0.0f;
+            cameraMode = CAMERA_FREE;
             camera.position = (Vector3){ 3.5f, 3.0f, 3.5f };
             camera.target = (Vector3){ 0.0f, 0.5f, 0.0f };
             camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
             camera.fovy = CAMERA_FOV;
-            SetCameraMode(camera, CAMERA_FREE);
+            SetCameraMode(camera, cameraMode);
 
             // Reset lights positions
             lightAngle = 0.0f;
