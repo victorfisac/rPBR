@@ -1,25 +1,10 @@
 /***********************************************************************************
 *
-*   rPBR [core] - Physically Based Rendering 3D drawing functions for raylib
-*
-*   FEATURES:
-*       - Phyiscally based rendering for any 3D model.
-*       - Metalness/Roughness PBR workflow.
-*       - Split-Sum Approximation for specular reflection calculations.
-*       - Support for normal mapping, parallax mapping and emission mapping.
-*       - Simple and easy-to-use implementation code.
-*       - Multi-material scene supported.
-*       - Point and directional lights supported.
-*       - Internal shader values and locations points handled automatically.
-*
-*   NOTES:
-*       Physically based rendering shaders paths are set up by default
-*       Remember to call UnloadMaterialPBR and UnloadEnvironment to deallocate required memory and unload textures
-*       Physically based rendering requires OpenGL 3.3 or ES2
+*   rPBR [ui] - Physically Based Rendering user interface drawing functions
 *
 *   DEPENDENCIES:
-*       stb_image (Sean Barret) for images loading (JPEG, PNG, BMP, HDR)
-*       GLAD for OpenGL extensions loading (3.3 Core profile)
+*       raylib (@raysan5) for raylib framework
+*       raygui (@raysan5) for user interface functions
 *
 *   LICENSE: zlib/libpng
 *
@@ -49,6 +34,7 @@
 // Includes
 //----------------------------------------------------------------------------------
 #include "raylib.h"         // Required for shapes and text drawing
+#include "raygui.h"         // Required for user interface functions
 
 //----------------------------------------------------------------------------------
 // Defines
