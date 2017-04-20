@@ -153,14 +153,20 @@ typedef enum TypePBR {
 } TypePBR;
 
 //----------------------------------------------------------------------------------
+// Global Variables Definition
+//----------------------------------------------------------------------------------
+static int lightsCount = 0;                     // Current amount of created lights 
+
+//----------------------------------------------------------------------------------
 // Functions Declaration
 //----------------------------------------------------------------------------------
 MaterialPBR SetupMaterialPBR(Environment env, Color albedo, int metallic, int roughness);                                       // Set up PBR environment shader constant values
 void SetMaterialTexturePBR(MaterialPBR *mat, TypePBR type, Texture2D texture);                                                  // Set texture to PBR material
-Light CreateLight(int type, Vector3 pos, Vector3 targ, Color color, Shader shader, int *lightCount);                            // Defines a light type, position, target, color and get locations from shader
+Light CreateLight(int type, Vector3 pos, Vector3 targ, Color color, Environment env);                                           // Defines a light and get locations from environment PBR shader
 Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianceSize, int prefilterSize, int brdfSize);        // Load an environment cubemap, irradiance, prefilter and PBR scene
 
-void UpdateLightValues(Shader shader, Light light);                                                                             // Send to shader light values
+int GetLightsCount(void);                                                                                                       // Get the current amount of created lights
+void UpdateLightsValues(Environment env, Light light);                                                                          // Send to environment PBR shader lights values
 
 void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotationAxis, float rotationAngle, Vector3 scale);    // Draw a model using physically based rendering
 void DrawSkybox(Environment environment, int mode, Camera camera);                                                              // Draw a cube skybox using environment cube map
@@ -250,8 +256,8 @@ void SetMaterialTexturePBR(MaterialPBR *mat, TypePBR type, Texture2D texture)
     }
 }
 
-// Defines a light type, position, target, color and get locations from shader
-Light CreateLight(int type, Vector3 pos, Vector3 targ, Color color, Shader shader, int *lightCount)
+// Defines a light and get locations from environment shader
+Light CreateLight(int type, Vector3 pos, Vector3 targ, Color color, Environment env)
 {
     Light light = { 0 };
 
@@ -266,20 +272,20 @@ Light CreateLight(int type, Vector3 pos, Vector3 targ, Color color, Shader shade
     char posName[32] = "lights[x].position\0";
     char targetName[32] = "lights[x].target\0";
     char colorName[32] = "lights[x].color\0";
-    enabledName[7] = '0' + *lightCount;
-    typeName[7] = '0' + *lightCount;
-    posName[7] = '0' + *lightCount;
-    targetName[7] = '0' + *lightCount;
-    colorName[7] = '0' + *lightCount;
+    enabledName[7] = '0' + lightsCount;
+    typeName[7] = '0' + lightsCount;
+    posName[7] = '0' + lightsCount;
+    targetName[7] = '0' + lightsCount;
+    colorName[7] = '0' + lightsCount;
 
-    light.enabledLoc = GetShaderLocation(shader, enabledName);
-    light.typeLoc = GetShaderLocation(shader, typeName);
-    light.posLoc = GetShaderLocation(shader, posName);
-    light.targetLoc = GetShaderLocation(shader, targetName);
-    light.colorLoc = GetShaderLocation(shader, colorName);
+    light.enabledLoc = GetShaderLocation(env.pbrShader, enabledName);
+    light.typeLoc = GetShaderLocation(env.pbrShader, typeName);
+    light.posLoc = GetShaderLocation(env.pbrShader, posName);
+    light.targetLoc = GetShaderLocation(env.pbrShader, targetName);
+    light.colorLoc = GetShaderLocation(env.pbrShader, colorName);
 
-    UpdateLightValues(shader, light);
-    *lightCount += 1;
+    UpdateLightsValues(env, light);
+    lightsCount++;
 
     return light;
 }
@@ -541,17 +547,23 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     return env;
 }
 
-// Send to shader light values
-void UpdateLightValues(Shader shader, Light light)
+// Get the current amount of created lights
+int GetLightsCount(void)
+{
+    return lightsCount;
+}
+
+// Send to environment PBR shader lights values
+void UpdateLightsValues(Environment env, Light light)
 {
     glUniform1i(light.enabledLoc, light.enabled);
     glUniform1i(light.typeLoc, light.type);
     float position[3] = { light.position.x, light.position.y, light.position.z };
-    SetShaderValue(shader, light.posLoc, position, 3);
+    SetShaderValue(env.pbrShader, light.posLoc, position, 3);
     float target[3] = { light.target.x, light.target.y, light.target.z };
-    SetShaderValue(shader, light.targetLoc, target, 3);
+    SetShaderValue(env.pbrShader, light.targetLoc, target, 3);
     float diff[4] = { (float)light.color.r/(float)255, (float)light.color.g/(float)255, (float)light.color.b/(float)255, (float)light.color.a/(float)255 };
-    SetShaderValue(shader, light.colorLoc, diff, 4);
+    SetShaderValue(env.pbrShader, light.colorLoc, diff, 4);
 }
 
 // Draw a model using physically based rendering

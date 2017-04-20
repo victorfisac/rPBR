@@ -7,6 +7,7 @@
 *       - Use right mouse button to rotate lighting.
 *       - Use middle mouse button to rotate and pan camera.
 *       - Use interface to adjust lighting, material and screen parameters (space - display/hide interface).
+*       - Press F1-F11 to switch between different render modes.
 *       - Press F12 or use Screenshot button to capture a screenshot and save it as PNG file.
 *
 *   Use the following line to compile:
@@ -70,10 +71,13 @@
 
 #define         MAX_RENDER_SCALES           3                   // Max number of available render scales (0.5X, 1X, 2X)
 #define         MAX_LIGHTS                  4                   // Max lights supported by shader
+
+#define         CAMERA_FOV                  60.0f               // Camera global field of view
+
 #define         MODEL_SCALE                 1.75f               // Model scale transformation for rendering
 #define         MODEL_OFFSET                0.45f               // Distance between models for rendering
-#define         CAMERA_FOV                  60.0f               // Camera global field of view
 #define         ROTATION_SPEED              0.0f                // Models rotation speed
+
 #define         LIGHT_SPEED                 0.1f                // Light rotation input speed
 #define         LIGHT_DISTANCE              3.5f                // Light distance from center of world
 #define         LIGHT_HEIGHT                1.0f                // Light height from center of world
@@ -193,12 +197,12 @@ int main()
     int enabledVignetteLoc = GetShaderLocation(fxShader, "enabledVignette");
 
     // Define lights attributes
-    int lightsCount = 0;
     Light lights[MAX_LIGHTS] = { 0 };
-    lights[lightsCount] = CreateLight(LIGHT_POINT, (Vector3){ LIGHT_DISTANCE, LIGHT_HEIGHT, 0.0f }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 255, 0, 0, 255 }, model.material.shader, &lightsCount);
-    lights[lightsCount] = CreateLight(LIGHT_POINT, (Vector3){ 0.0f, LIGHT_HEIGHT, LIGHT_DISTANCE }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 0, 255, 0, 255 }, model.material.shader, &lightsCount);
-    lights[lightsCount] = CreateLight(LIGHT_POINT, (Vector3){ -LIGHT_DISTANCE, LIGHT_HEIGHT, 0.0f }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 0, 0, 255, 255 }, model.material.shader, &lightsCount);
-    lights[lightsCount] = CreateLight(LIGHT_DIRECTIONAL, (Vector3){ 0, LIGHT_HEIGHT*2.0f, -LIGHT_DISTANCE }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 255, 0, 255, 255 }, model.material.shader, &lightsCount);
+    lights[0] = CreateLight(LIGHT_POINT, (Vector3){ LIGHT_DISTANCE, LIGHT_HEIGHT, 0.0f }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 255, 0, 0, 255 }, environment);
+    lights[2] = CreateLight(LIGHT_POINT, (Vector3){ 0.0f, LIGHT_HEIGHT, LIGHT_DISTANCE }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 0, 255, 0, 255 }, environment);
+    lights[3] = CreateLight(LIGHT_POINT, (Vector3){ -LIGHT_DISTANCE, LIGHT_HEIGHT, 0.0f }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 0, 0, 255, 255 }, environment);
+    lights[4] = CreateLight(LIGHT_DIRECTIONAL, (Vector3){ 0, LIGHT_HEIGHT*2.0f, -LIGHT_DISTANCE }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 255, 0, 255, 255 }, environment);
+    int totalLights = GetLightsCount();
 
     // Create a render texture for antialiasing post-processing effect and initialize Bloom shader
     RenderTexture2D fxTarget = LoadRenderTexture(GetScreenWidth()*renderScales[renderScale], GetScreenHeight()*renderScales[renderScale]);
@@ -308,7 +312,7 @@ int main()
 
             // Reset lights positions
             lightAngle = 0.0f;
-            for (int i = 0; i < lightsCount; i++)
+            for (int i = 0; i < totalLights; i++)
             {
                 float angle = lightAngle + 90*i;
                 lights[i].position.x = LIGHT_DISTANCE*cosf(angle*DEG2RAD);
@@ -325,7 +329,7 @@ int main()
 
             // Update lights positions based on delta position with an orbital movement
             lightAngle += (mousePosX - lastMousePosX)*LIGHT_SPEED;
-            for (int i = 0; i < lightsCount; i++)
+            for (int i = 0; i < totalLights; i++)
             {
                 float angle = lightAngle + 90*i;
                 lights[i].position.x = LIGHT_DISTANCE*cosf(angle*DEG2RAD);
@@ -335,17 +339,17 @@ int main()
         else mousePosX = GetMouseX();
 
         // Check for render mode inputs
-        if (IsKeyPressed(KEY_ONE)) renderMode = DEFAULT;
-        else if (IsKeyPressed(KEY_TWO)) renderMode = ALBEDO;
-        else if (IsKeyPressed(KEY_THREE)) renderMode = NORMALS;
-        else if (IsKeyPressed(KEY_FOUR)) renderMode = METALLIC;
-        else if (IsKeyPressed(KEY_FIVE)) renderMode = ROUGHNESS;
-        else if (IsKeyPressed(KEY_SIX)) renderMode = AMBIENT_OCCLUSION;
-        else if (IsKeyPressed(KEY_SEVEN)) renderMode = EMISSION;
-        else if (IsKeyPressed(KEY_EIGHT)) renderMode = LIGHTING;
-        else if (IsKeyPressed(KEY_NINE)) renderMode = FRESNEL;
-        else if (IsKeyPressed(KEY_ZERO)) renderMode = IRRADIANCE;
-        else if (IsKeyPressed('.')) renderMode = REFLECTION;
+        if (IsKeyPressed(KEY_F1)) renderMode = DEFAULT;
+        else if (IsKeyPressed(KEY_F2)) renderMode = ALBEDO;
+        else if (IsKeyPressed(KEY_F3)) renderMode = NORMALS;
+        else if (IsKeyPressed(KEY_F4)) renderMode = METALLIC;
+        else if (IsKeyPressed(KEY_F5)) renderMode = ROUGHNESS;
+        else if (IsKeyPressed(KEY_F6)) renderMode = AMBIENT_OCCLUSION;
+        else if (IsKeyPressed(KEY_F7)) renderMode = EMISSION;
+        else if (IsKeyPressed(KEY_F8)) renderMode = LIGHTING;
+        else if (IsKeyPressed(KEY_F9)) renderMode = FRESNEL;
+        else if (IsKeyPressed(KEY_F10)) renderMode = IRRADIANCE;
+        else if (IsKeyPressed(KEY_F11)) renderMode = REFLECTION;
 
         // Check for render scale inputs
         if (IsKeyPressed(KEY_Y) && (renderScale < RENDER_SCALE_2X))
@@ -380,7 +384,7 @@ int main()
                 if (CheckCollisionRaySphere(ray, lights[i].position, LIGHT_RADIUS)) lights[i].enabled = !lights[i].enabled;
             }
 
-            UpdateLightValues(environment.pbrShader, lights[i]);
+            UpdateLightsValues(environment, lights[i]);
         }
 
         // Update camera values and send them to all required shaders
