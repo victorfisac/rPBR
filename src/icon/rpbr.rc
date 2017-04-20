@@ -1,0 +1,20 @@
+1 ICON rpbr.ico
+2 VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "080904E4"
+    BEGIN
+      VALUE "CompanyName", "Victor Fisac Fuentes"
+      VALUE "FileDescription", "rPBR - Physically based rendering 3D model viewer"
+      VALUE "FileVersion", "1.0"
+      VALUE "InternalName", "rpbr"
+      VALUE "LegalCopyright", "Victor Fisac, 2017. All rights reserved."
+      VALUE "OriginalFilename", "rpbr.exe"
+      VALUE "ProductName", "rPBR"
+      VALUE "ProductVersion", "1.0"
+    END
+  END
+END
