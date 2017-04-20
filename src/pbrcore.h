@@ -111,6 +111,7 @@ typedef struct Environment {
 
     int pbrViewLoc;
     int skyViewLoc;
+    int skyResolutionLoc;
 } Environment;
 
 typedef struct MaterialPBR {
@@ -305,6 +306,7 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     int skyMapLoc = GetShaderLocation(env.skyShader, "environmentMap");
     int skyProjectionLoc = GetShaderLocation(env.skyShader, "projection");
     env.skyViewLoc = GetShaderLocation(env.skyShader, "view");
+    env.skyResolutionLoc = GetShaderLocation(env.skyShader, "resolution");
 
     // Get irradiance shader locations
     int irradianceMapLoc = GetShaderLocation(env.irradianceShader, "environmentMap");
