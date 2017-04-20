@@ -1,6 +1,6 @@
 /***********************************************************************************
 *
-*   rPBR 1.0 [core] - Physically Based Rendering 3D drawing functions for raylib   
+*   rPBR [core] - Physically Based Rendering 3D drawing functions for raylib
 *
 *   FEATURES:
 *       - Phyiscally based rendering for any 3D model.
