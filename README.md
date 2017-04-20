@@ -28,16 +28,19 @@ The header contains a few customizable define values. I set the values that give
 
 _Note: paths to environment and physically based rendering shaders are defined in pbrcore.h. Check the paths if your program doesn't load shaders properly._
 
+
 Dependencies
 -----
 
 rPBR uses the following C libraries
 
-   *  raylib.h     - raylib framework for window management and inputs.
+   *  [raylib.h](https://github.com/raysan5/raylib/blob/master/src/raylib.h)     - raylib framework for window management and inputs.
+   *  [raygui.h](https://github.com/raysan5/raygui/blob/master/raygui.h)     - raylib user interface drawing functions.
    *  stdlio.h     - Trace log messages [printf()].
    *  math.h       - Math operations functions [pow()].
-   *  stb_image.h  - Image loading [Sean Barret].
-   *  glad.h       - OpenGL API [3.3 Core profile].
+   *  [stb_image.h](https://github.com/nothings/stb/blob/master/stb_image.h)  - Image loading [Sean Barret].
+   *  [glad.h](https://github.com/glfw/glfw/blob/master/deps/glad/glad.h)       - OpenGL API [3.3 Core profile].
+
 
 Screenshots
 -----
@@ -46,3 +49,9 @@ Screenshots
 <img src="https://github.com/victorfisac/rPBR/blob/master/screenshots/pbr_gold.png">
 
 <img src="https://github.com/victorfisac/rPBR/blob/master/screenshots/pbr_blaster.png">
+
+Credits
+-----
+
+   * [Victor Fisac](http://www.victorfisac.com) - Main rPBR developer
+   * [Ramón Santamaria](http://www.raylib.com) - Support designing and developing rPBR
