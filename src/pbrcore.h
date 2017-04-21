@@ -141,7 +141,7 @@ typedef enum TypePBR {
 //----------------------------------------------------------------------------------
 // Global Variables Definition
 //----------------------------------------------------------------------------------
-static int lightsCount = 0;                     // Current amount of created lights 
+static int lightsCount = 0;                     // Current amount of created lights
 
 //----------------------------------------------------------------------------------
 // Functions Declaration
@@ -559,6 +559,9 @@ int GetLightsCount(void)
 // Send to environment PBR shader lights values
 void UpdateLightsValues(Environment env, Light light)
 {
+    // Use environment PBR shader to begin sending values
+    glUseProgram(env.pbrShader.id);
+
     // Send to shader light enabled state and type
     glUniform1i(light.enabledLoc, light.enabled);
     glUniform1i(light.typeLoc, light.type);
