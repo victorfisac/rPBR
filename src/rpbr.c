@@ -57,14 +57,14 @@
 
 #define         PATH_ICON                   "resources/textures/rpbr_icon.png"
 #define         PATH_TEXTURES_HDR           "resources/textures/hdr/pinetree.hdr"
-#define         PATH_MODEL                  "resources/models/cerberus.obj"
-#define         PATH_TEXTURES_ALBEDO        "resources/textures/cerberus/cerberus_albedo.png"
-#define         PATH_TEXTURES_NORMALS       "resources/textures/cerberus/cerberus_normals.png"
-#define         PATH_TEXTURES_METALNESS     "resources/textures/cerberus/cerberus_metalness.png"
-#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/cerberus/cerberus_roughness.png"
-// #define      PATH_TEXTURES_AO            "resources/textures/cerberus/cerberus_ao.png"
-// #define      PATH_TEXTURES_EMISSION      "resources/textures/cerberus/cerberus_emission.png"
-// #define      PATH_TEXTURES_HEIGHT        "resources/textures/cerberus/cerberus_height.png"
+#define         PATH_MODEL                  "resources/models/dwarf.obj"
+#define         PATH_TEXTURES_ALBEDO        "resources/textures/dwarf/dwarf_albedo.png"
+#define         PATH_TEXTURES_NORMALS       "resources/textures/dwarf/dwarf_normals.png"
+#define         PATH_TEXTURES_METALNESS     "resources/textures/dwarf/dwarf_metalness.png"
+#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/dwarf/dwarf_roughness.png"
+// #define      PATH_TEXTURES_AO            "resources/textures/dwarf/dwarf_ao.png"
+// #define      PATH_TEXTURES_EMISSION      "resources/textures/dwarf/dwarf_emission.png"
+// #define      PATH_TEXTURES_HEIGHT        "resources/textures/dwarf/dwarf_height.png"
 #define         PATH_SHADERS_POSTFX_VS      "resources/shaders/postfx.vs"
 #define         PATH_SHADERS_POSTFX_FS      "resources/shaders/postfx.fs"
 
@@ -162,38 +162,38 @@ int main()
     MaterialPBR matPBR = SetupMaterialPBR(environment, (Color){ 255 }, 255, 255);
 #if defined(PATH_TEXTURES_ALBEDO)
     SetMaterialTexturePBR(&matPBR, PBR_ALBEDO, LoadTexture(PATH_TEXTURES_ALBEDO));
-    SetTextureFilter(matPBR.albedoTex, FILTER_BILINEAR);
-    textures[PBR_ALBEDO] = matPBR.albedoTex;
+    SetTextureFilter(matPBR.albedo.bitmap, FILTER_BILINEAR);
+    textures[PBR_ALBEDO] = matPBR.albedo.bitmap;
 #endif
 #if defined(PATH_TEXTURES_NORMALS)
     SetMaterialTexturePBR(&matPBR, PBR_NORMALS, LoadTexture(PATH_TEXTURES_NORMALS));
-    SetTextureFilter(matPBR.normalsTex, FILTER_BILINEAR);
-    textures[PBR_NORMALS] = matPBR.normalsTex;
+    SetTextureFilter(matPBR.normals.bitmap, FILTER_BILINEAR);
+    textures[PBR_NORMALS] = matPBR.normals.bitmap;
 #endif
 #if defined(PATH_TEXTURES_METALNESS)
     SetMaterialTexturePBR(&matPBR, PBR_METALNESS, LoadTexture(PATH_TEXTURES_METALNESS));
-    SetTextureFilter(matPBR.metalnessTex, FILTER_BILINEAR);
-    textures[PBR_METALNESS] = matPBR.metalnessTex;
+    SetTextureFilter(matPBR.metalness.bitmap, FILTER_BILINEAR);
+    textures[PBR_METALNESS] = matPBR.metalness.bitmap;
 #endif
 #if defined(PATH_TEXTURES_ROUGHNESS)
     SetMaterialTexturePBR(&matPBR, PBR_ROUGHNESS, LoadTexture(PATH_TEXTURES_ROUGHNESS));
-    SetTextureFilter(matPBR.roughnessTex, FILTER_BILINEAR);
-    textures[PBR_ROUGHNESS] = matPBR.roughnessTex;
+    SetTextureFilter(matPBR.roughness.bitmap, FILTER_BILINEAR);
+    textures[PBR_ROUGHNESS] = matPBR.roughness.bitmap;
 #endif
 #if defined(PATH_TEXTURES_AO)
     SetMaterialTexturePBR(&matPBR, PBR_AO, LoadTexture(PATH_TEXTURES_AO));
-    SetTextureFilter(matPBR.aoTex, FILTER_BILINEAR);
-    textures[PBR_AO] = matPBR.aoTex;
+    SetTextureFilter(matPBR.ao.bitmap, FILTER_BILINEAR);
+    textures[PBR_AO] = matPBR.ao.bitmap;
 #endif
 #if defined(PATH_TEXTURES_EMISSION)
     SetMaterialTexturePBR(&matPBR, PBR_EMISSION, LoadTexture(PATH_TEXTURES_EMISSION));
-    SetTextureFilter(matPBR.emissionTex, FILTER_BILINEAR);
-    textures[PBR_EMISSION] = matPBR.emissionTex;
+    SetTextureFilter(matPBR.emission.bitmap, FILTER_BILINEAR);
+    textures[PBR_EMISSION] = matPBR.emission.bitmap;
 #endif
 #if defined(PATH_TEXTURES_HEIGHT)
     SetMaterialTexturePBR(&matPBR, PBR_HEIGHT, LoadTexture(PATH_TEXTURES_HEIGHT));
-    SetTextureFilter(matPBR.heightTex, FILTER_BILINEAR);
-    textures[PBR_HEIGHT] = matPBR.heightTex;
+    SetTextureFilter(matPBR.height.bitmap, FILTER_BILINEAR);
+    textures[PBR_HEIGHT] = matPBR.height.bitmap;
 #endif
     Shader fxShader = LoadShader(PATH_SHADERS_POSTFX_VS, PATH_SHADERS_POSTFX_FS);
 
@@ -257,31 +257,38 @@ int main()
                 matPBR = SetupMaterialPBR(environment, (Color){ 255 }, 255, 255);
             #if defined(PATH_TEXTURES_ALBEDO)
                 SetMaterialTexturePBR(&matPBR, PBR_ALBEDO, LoadTexture(PATH_TEXTURES_ALBEDO));
-                SetTextureFilter(matPBR.albedoTex, FILTER_BILINEAR);
+                SetTextureFilter(matPBR.albedo.bitmap, FILTER_BILINEAR);
+                textures[PBR_ALBEDO] = matPBR.albedo.bitmap;
             #endif
             #if defined(PATH_TEXTURES_NORMALS)
                 SetMaterialTexturePBR(&matPBR, PBR_NORMALS, LoadTexture(PATH_TEXTURES_NORMALS));
-                SetTextureFilter(matPBR.normalsTex, FILTER_BILINEAR);
+                SetTextureFilter(matPBR.normals.bitmap, FILTER_BILINEAR);
+                textures[PBR_NORMALS] = matPBR.normals.bitmap;
             #endif
             #if defined(PATH_TEXTURES_METALNESS)
                 SetMaterialTexturePBR(&matPBR, PBR_METALNESS, LoadTexture(PATH_TEXTURES_METALNESS));
-                SetTextureFilter(matPBR.metalnessTex, FILTER_BILINEAR);
+                SetTextureFilter(matPBR.metalness.bitmap, FILTER_BILINEAR);
+                textures[PBR_METALNESS] = matPBR.metalness.bitmap;
             #endif
             #if defined(PATH_TEXTURES_ROUGHNESS)
                 SetMaterialTexturePBR(&matPBR, PBR_ROUGHNESS, LoadTexture(PATH_TEXTURES_ROUGHNESS));
-                SetTextureFilter(matPBR.roughnessTex, FILTER_BILINEAR);
+                SetTextureFilter(matPBR.roughness.bitmap, FILTER_BILINEAR);
+                textures[PBR_ROUGHNESS] = matPBR.roughness.bitmap;
             #endif
             #if defined(PATH_TEXTURES_AO)
                 SetMaterialTexturePBR(&matPBR, PBR_AO, LoadTexture(PATH_TEXTURES_AO));
-                SetTextureFilter(matPBR.aoTex, FILTER_BILINEAR);
+                SetTextureFilter(matPBR.ao.bitmap, FILTER_BILINEAR);
+                textures[PBR_AO] = matPBR.ao.bitmap;
             #endif
             #if defined(PATH_TEXTURES_EMISSION)
                 SetMaterialTexturePBR(&matPBR, PBR_EMISSION, LoadTexture(PATH_TEXTURES_EMISSION));
-                SetTextureFilter(matPBR.heightTex, FILTER_BILINEAR);
+                SetTextureFilter(matPBR.emission.bitmap, FILTER_BILINEAR);
+                textures[PBR_EMISSION] = matPBR.emission.bitmap;
             #endif
             #if defined(PATH_TEXTURES_HEIGHT)
                 SetMaterialTexturePBR(&matPBR, PBR_HEIGHT, LoadTexture(PATH_TEXTURES_HEIGHT));
-                SetTextureFilter(matPBR.heightTex, FILTER_BILINEAR);
+                SetTextureFilter(matPBR.height.bitmap, FILTER_BILINEAR);
+                textures[PBR_HEIGHT] = matPBR.height.bitmap;
             #endif
 
                 // Set up materials and lighting

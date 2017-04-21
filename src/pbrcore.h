@@ -111,28 +111,20 @@ typedef struct Environment {
     int skyResolutionLoc;
 } Environment;
 
+typedef struct PropertyPBR {
+    Texture2D bitmap;
+    bool useBitmap;
+    Color color;
+} PropertyPBR;
+
 typedef struct MaterialPBR {
-    Texture2D albedoTex;
-    Texture2D normalsTex;
-    Texture2D metalnessTex;
-    Texture2D roughnessTex;
-    Texture2D aoTex;
-    Texture2D emissionTex;
-    Texture2D heightTex;
-    bool useAlbedoMap;
-    bool useNormalMap;
-    bool useMetalnessMap;
-    bool useRoughnessMap;
-    bool useOcclusionMap;
-    bool useEmissionMap;
-    bool useParallaxMap;
-    Color albedoColor;
-    Color normalsColor;
-    Color metalColor;
-    Color roughnessColor;
-    Color aoColor;
-    Color emissionColor;
-    Color heightColor;
+    PropertyPBR albedo;
+    PropertyPBR normals;
+    PropertyPBR metalness;
+    PropertyPBR roughness;
+    PropertyPBR ao;
+    PropertyPBR emission;
+    PropertyPBR height;
     Environment env;
 } MaterialPBR;
 
@@ -179,14 +171,34 @@ MaterialPBR SetupMaterialPBR(Environment env, Color albedo, int metalness, int r
 {
     MaterialPBR mat;
 
-    mat.albedoColor = albedo;
-    mat.normalsColor = (Color){ 128, 128, 255, 255 };
-    mat.metalColor = (Color){ metalness, 0, 0, 0 };
-    mat.roughnessColor = (Color){ roughness, 0, 0, 0 };
-    mat.aoColor = (Color){ 255, 255, 255, 255 };
-    mat.heightColor = (Color){ 0, 0, 0, 0 };
-    mat.emissionColor = (Color){ 0, 0, 0, 0 };
+    // Set up material properties color
+    mat.albedo.color = albedo;
+    mat.normals.color = (Color){ 128, 128, 255, 255 };
+    mat.metalness.color = (Color){ metalness, 0, 0, 0 };
+    mat.roughness.color = (Color){ roughness, 0, 0, 0 };
+    mat.ao.color = (Color){ 255, 255, 255, 255 };
+    mat.emission.color = (Color){ 0, 0, 0, 0 };
+    mat.height.color = (Color){ 0, 0, 0, 0 };
 
+    // Set up material properties use texture state
+    mat.albedo.useBitmap = false;
+    mat.normals.useBitmap = false;
+    mat.metalness.useBitmap = false;
+    mat.roughness.useBitmap = false;
+    mat.ao.useBitmap = false;
+    mat.emission.useBitmap = false;
+    mat.height.useBitmap = false;
+
+    // Set up material properties textures
+    mat.albedo.bitmap = (Texture2D){ 0 };
+    mat.normals.bitmap = (Texture2D){ 0 };
+    mat.metalness.bitmap = (Texture2D){ 0 };
+    mat.roughness.bitmap = (Texture2D){ 0 };
+    mat.ao.bitmap = (Texture2D){ 0 };
+    mat.emission.bitmap = (Texture2D){ 0 };
+    mat.height.bitmap = (Texture2D){ 0 };
+
+    // Set up material environment
     mat.env = env;
 
     // Set up PBR shader material texture units
@@ -212,38 +224,38 @@ void SetMaterialTexturePBR(MaterialPBR *mat, TypePBR type, Texture2D texture)
     {
         case PBR_ALBEDO:
         {
-            mat->albedoTex = texture;
-            mat->useAlbedoMap = true;
+            mat->albedo.bitmap = texture;
+            mat->albedo.useBitmap = true;
         } break;
         case PBR_NORMALS:
         {
-            mat->normalsTex = texture;
-            mat->useNormalMap = true;
+            mat->normals.bitmap = texture;
+            mat->normals.useBitmap = true;
         } break;
         case PBR_METALNESS:
         {
-            mat->metalnessTex = texture;
-            mat->useMetalnessMap = true;
+            mat->metalness.bitmap = texture;
+            mat->metalness.useBitmap = true;
         } break;
         case PBR_ROUGHNESS:
         {
-            mat->roughnessTex = texture;
-            mat->useRoughnessMap = true;
+            mat->roughness.bitmap = texture;
+            mat->roughness.useBitmap = true;
         } break;
         case PBR_AO:
         {
-            mat->aoTex = texture;
-            mat->useOcclusionMap = true;
+            mat->ao.bitmap = texture;
+            mat->ao.useBitmap = true;
         } break;
         case PBR_EMISSION:
         {
-            mat->emissionTex = texture;
-            mat->useEmissionMap = true;
+            mat->emission.bitmap = texture;
+            mat->emission.useBitmap = true;
         } break;
         case PBR_HEIGHT:
         {
-            mat->heightTex = texture;
-            mat->useParallaxMap = true;
+            mat->height.bitmap = texture;
+            mat->height.useBitmap = true;
         } break;
         default: break;
     }
@@ -583,30 +595,30 @@ void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotati
     glUseProgram(mat.env.pbrShader.id);
 
     // Set up material uniforms and other constant values
-    float shaderAlbedo[3] = { (float)mat.albedoColor.r/(float)255, (float)mat.albedoColor.g/(float)255, (float)mat.albedoColor.b/(float)255 };
+    float shaderAlbedo[3] = { (float)mat.albedo.color.r/(float)255, (float)mat.albedo.color.g/(float)255, (float)mat.albedo.color.b/(float)255 };
     SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "albedo.color"), shaderAlbedo, 3);
-    float shaderNormals[3] = { (float)mat.normalsColor.r/(float)255, (float)mat.normalsColor.g/(float)255, (float)mat.normalsColor.b/(float)255 };
+    float shaderNormals[3] = { (float)mat.normals.color.r/(float)255, (float)mat.normals.color.g/(float)255, (float)mat.normals.color.b/(float)255 };
     SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "normals.color"), shaderNormals, 3);
-    float shaderMetalness[3] = { (float)mat.metalColor.r/(float)255, (float)mat.metalColor.g/(float)255, (float)mat.metalColor.b/(float)255 };
+    float shaderMetalness[3] = { (float)mat.metalness.color.r/(float)255, (float)mat.metalness.color.g/(float)255, (float)mat.metalness.color.b/(float)255 };
     SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "metalness.color"), shaderMetalness, 3);
-    float shaderRoughness[3] = { 1.0f - (float)mat.roughnessColor.r/(float)255, 1.0f - (float)mat.roughnessColor.g/(float)255, 1.0f - (float)mat.roughnessColor.b/(float)255 };
+    float shaderRoughness[3] = { 1.0f - (float)mat.roughness.color.r/(float)255, 1.0f - (float)mat.roughness.color.g/(float)255, 1.0f - (float)mat.roughness.color.b/(float)255 };
     SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "roughness.color"), shaderRoughness, 3);
-    float shaderAo[3] = { (float)mat.aoColor.r/(float)255, (float)mat.aoColor.g/(float)255, (float)mat.aoColor.b/(float)255 };
+    float shaderAo[3] = { (float)mat.ao.color.r/(float)255, (float)mat.ao.color.g/(float)255, (float)mat.ao.color.b/(float)255 };
     SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "ao.color"), shaderAo, 3);
-    float shaderEmission[3] = { (float)mat.emissionColor.r/(float)255, (float)mat.emissionColor.g/(float)255, (float)mat.emissionColor.b/(float)255 };
+    float shaderEmission[3] = { (float)mat.emission.color.r/(float)255, (float)mat.emission.color.g/(float)255, (float)mat.emission.color.b/(float)255 };
     SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "emission.color"), shaderEmission, 3);
-    float shaderHeight[3] = { (float)mat.heightColor.r/(float)255, (float)mat.heightColor.g/(float)255, (float)mat.heightColor.b/(float)255 };
+    float shaderHeight[3] = { (float)mat.height.color.r/(float)255, (float)mat.height.color.g/(float)255, (float)mat.height.color.b/(float)255 };
     SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "height.color"), shaderHeight, 3);
 
     // Send sampler use state to PBR shader
     glUseProgram(mat.env.pbrShader.id);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "albedo.useSampler"), mat.useAlbedoMap);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "normals.useSampler"), mat.useNormalMap);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "metalness.useSampler"), mat.useMetalnessMap);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "roughness.useSampler"), mat.useRoughnessMap);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "ao.useSampler"), mat.useOcclusionMap);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "emission.useSampler"), mat.useEmissionMap);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "height.useSampler"), mat.useParallaxMap);
+    glUniform1i(GetShaderLocation(mat.env.pbrShader, "albedo.useSampler"), mat.albedo.useBitmap);
+    glUniform1i(GetShaderLocation(mat.env.pbrShader, "normals.useSampler"), mat.normals.useBitmap);
+    glUniform1i(GetShaderLocation(mat.env.pbrShader, "metalness.useSampler"), mat.metalness.useBitmap);
+    glUniform1i(GetShaderLocation(mat.env.pbrShader, "roughness.useSampler"), mat.roughness.useBitmap);
+    glUniform1i(GetShaderLocation(mat.env.pbrShader, "ao.useSampler"), mat.ao.useBitmap);
+    glUniform1i(GetShaderLocation(mat.env.pbrShader, "emission.useSampler"), mat.emission.useBitmap);
+    glUniform1i(GetShaderLocation(mat.env.pbrShader, "height.useSampler"), mat.height.useBitmap);
 
     // Calculate and send to shader model matrix
     Matrix matScale = MatrixScale(scale.x, scale.y, scale.z);
@@ -627,95 +639,53 @@ void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotati
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, mat.env.brdfId);
 
-    if (mat.useAlbedoMap)
-    {
-        // Disable and bind albedo map
-        glActiveTexture(GL_TEXTURE3);
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
-
-    if (mat.useNormalMap)
-    {
-        // Disable and bind normals map
-        glActiveTexture(GL_TEXTURE4);
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
-
-    if (mat.useMetalnessMap)
-    {
-        // Disable and bind metalness map
-        glActiveTexture(GL_TEXTURE5);
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
-
-    if (mat.useRoughnessMap)
-    {
-        // Disable and bind roughness map
-        glActiveTexture(GL_TEXTURE6);
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
-
-    if (mat.useOcclusionMap)
-    {
-        // Disable and bind ambient occlusion map
-        glActiveTexture(GL_TEXTURE7);
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
-
-    if (mat.useParallaxMap)
-    {
-        // Disable and bind parallax height map
-        glActiveTexture(GL_TEXTURE8);
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
-
-    if (mat.useAlbedoMap)
+    if (mat.albedo.useBitmap)
     {
         // Enable and bind albedo map
         glActiveTexture(GL_TEXTURE3);
-        glBindTexture(GL_TEXTURE_2D, mat.albedoTex.id);
+        glBindTexture(GL_TEXTURE_2D, mat.albedo.bitmap.id);
     }
 
-    if (mat.useNormalMap)
+    if (mat.normals.useBitmap)
     {
         // Enable and bind normals map
         glActiveTexture(GL_TEXTURE4);
-        glBindTexture(GL_TEXTURE_2D, mat.normalsTex.id);
+        glBindTexture(GL_TEXTURE_2D, mat.normals.bitmap.id);
     }
 
-    if (mat.useMetalnessMap)
+    if (mat.metalness.useBitmap)
     {
         // Enable and bind metalness map
         glActiveTexture(GL_TEXTURE5);
-        glBindTexture(GL_TEXTURE_2D, mat.metalnessTex.id);
+        glBindTexture(GL_TEXTURE_2D, mat.metalness.bitmap.id);
     }
 
-    if (mat.useRoughnessMap)
+    if (mat.roughness.useBitmap)
     {
         // Enable and bind roughness map
         glActiveTexture(GL_TEXTURE6);
-        glBindTexture(GL_TEXTURE_2D, mat.roughnessTex.id);
+        glBindTexture(GL_TEXTURE_2D, mat.roughness.bitmap.id);
     }
 
-    if (mat.useOcclusionMap)
+    if (mat.ao.useBitmap)
     {
         // Enable and bind ambient occlusion map
         glActiveTexture(GL_TEXTURE7);
-        glBindTexture(GL_TEXTURE_2D, mat.aoTex.id);
+        glBindTexture(GL_TEXTURE_2D, mat.ao.bitmap.id);
     }
 
-    if (mat.useEmissionMap)
+    if (mat.emission.useBitmap)
     {
         // Enable and bind emission map
         glActiveTexture(GL_TEXTURE8);
-        glBindTexture(GL_TEXTURE_2D, mat.emissionTex.id);
+        glBindTexture(GL_TEXTURE_2D, mat.emission.bitmap.id);
     }
 
-    if (mat.useParallaxMap)
+    if (mat.height.useBitmap)
     {
         // Enable and bind parallax height map
         glActiveTexture(GL_TEXTURE9);
-        glBindTexture(GL_TEXTURE_2D, mat.heightTex.id);
+        glBindTexture(GL_TEXTURE_2D, mat.height.bitmap.id);
     }
 
     // Draw model using PBR shader and textures maps
@@ -733,52 +703,45 @@ void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotati
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    if (mat.useAlbedoMap)
+    if (mat.albedo.useBitmap)
     {
         // Disable and bind albedo map
         glActiveTexture(GL_TEXTURE3);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
-    if (mat.useNormalMap)
+    if (mat.normals.useBitmap)
     {
         // Disable and bind normals map
         glActiveTexture(GL_TEXTURE4);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
-    if (mat.useMetalnessMap)
+    if (mat.metalness.useBitmap)
     {
         // Disable and bind metalness map
         glActiveTexture(GL_TEXTURE5);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
-    if (mat.useRoughnessMap)
+    if (mat.roughness.useBitmap)
     {
         // Disable and bind roughness map
         glActiveTexture(GL_TEXTURE6);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
-    if (mat.useOcclusionMap)
+    if (mat.ao.useBitmap)
     {
         // Disable and bind ambient occlusion map
         glActiveTexture(GL_TEXTURE7);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
-    if (mat.useEmissionMap)
-    {
-        // Disable and bind emission map
-        glActiveTexture(GL_TEXTURE8);
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
-
-    if (mat.useParallaxMap)
+    if (mat.height.useBitmap)
     {
         // Disable and bind parallax height map
-        glActiveTexture(GL_TEXTURE9);
+        glActiveTexture(GL_TEXTURE8);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 }
@@ -921,13 +884,13 @@ void RenderQuad(void)
 // Unload material PBR textures
 void UnloadMaterialPBR(MaterialPBR mat)
 {
-    if (mat.useAlbedoMap) UnloadTexture(mat.albedoTex);
-    if (mat.useNormalMap) UnloadTexture(mat.normalsTex);
-    if (mat.useMetalnessMap) UnloadTexture(mat.metalnessTex);
-    if (mat.useRoughnessMap) UnloadTexture(mat.roughnessTex);
-    if (mat.useOcclusionMap) UnloadTexture(mat.aoTex);
-    if (mat.useEmissionMap) UnloadTexture(mat.emissionTex);
-    if (mat.useParallaxMap) UnloadTexture(mat.heightTex);
+    if (mat.albedo.useBitmap) UnloadTexture(mat.albedo.bitmap);
+    if (mat.normals.useBitmap) UnloadTexture(mat.normals.bitmap);
+    if (mat.metalness.useBitmap) UnloadTexture(mat.metalness.bitmap);
+    if (mat.roughness.useBitmap) UnloadTexture(mat.roughness.bitmap);
+    if (mat.ao.useBitmap) UnloadTexture(mat.ao.bitmap);
+    if (mat.emission.useBitmap) UnloadTexture(mat.emission.bitmap);
+    if (mat.height.useBitmap) UnloadTexture(mat.height.bitmap);
 }
 
 // Unload environment loaded shaders and dynamic textures
