@@ -44,9 +44,14 @@
 // Includes
 //----------------------------------------------------------------------------------
 #include "raylib.h"                         // Required for raylib framework
+
+#define RAYGUI_IMPLEMENTATION
+#include "raygui.h"                         // Required for user interface functions
+
+#define RAYMATH_IMPLEMENTATION
 #include "raymath.h"                        // Required for matrix, vectors and other math functions
+
 #include "pbrcore.h"                        // Required for lighting, environment and drawing functions
-#include "pbrui.h"                          // Required for interface drawing
 
 //----------------------------------------------------------------------------------
 // Defines
@@ -54,6 +59,9 @@
 #define         WINDOW_TITLE                "rPBR - Physically based rendering 3D model viewer"
 #define         WINDOW_WIDTH                1440
 #define         WINDOW_HEIGHT               810
+
+#define         KEY_NUMPAD_SUM              43
+#define         KEY_NUMPAD_SUBTRACT         45
 
 #define         PATH_ICON                   "resources/textures/rpbr_icon.png"
 #define         PATH_TEXTURES_HDR           "resources/textures/hdr/pinetree.hdr"
@@ -68,8 +76,10 @@
 #define         PATH_SHADERS_POSTFX_VS      "resources/shaders/postfx.vs"
 #define         PATH_SHADERS_POSTFX_FS      "resources/shaders/postfx.fs"
 
-#define         MAX_RENDER_SCALES           3                   // Max number of available render scales (0.5X, 1X, 2X)
 #define         MAX_LIGHTS                  4                   // Max lights supported by shader
+#define         MAX_TEXTURES                7                   // Max number of supported textures in a PBR material
+#define         MAX_RENDER_SCALES           3                   // Max number of available render scales (RenderScale type)
+#define         MAX_RENDER_MODES            11                  // Max number of render modes to switch (RenderMode type)
 #define         MAX_SCROLL                  850                 // Max mouse wheel for interface scrolling
 #define         SCROLL_SPEED                50                  // Interface scrolling speed
 
@@ -89,21 +99,101 @@
 #define         PREFILTERED_SIZE            256                 // Prefiltered HDR environment map texture size
 #define         BRDF_SIZE                   512                 // BRDF LUT texture map size
 
+#define         UI_MENU_WIDTH               225
+#define         UI_MENU_BORDER              5
+#define         UI_MENU_PADDING             15
+#define         UI_TEXTURES_PADDING         230
+#define         UI_TEXTURES_SIZE            180
+#define         UI_SLIDER_WIDTH             250
+#define         UI_SLIDER_HEIGHT            20
+#define         UI_COLOR_BACKGROUND         (Color){ 5, 26, 36, 255 }
+#define         UI_COLOR_SECONDARY          (Color){ 245, 245, 245, 255 }
+#define         UI_COLOR_PRIMARY            (Color){ 234, 83, 77, 255 }
+#define         UI_TEXT_SIZE_H2             20
+#define         UI_TEXT_SIZE_H3             10
+#define         UI_TEXT_TEXTURES_TITLE      "Textures"
+#define         UI_TEXT_DRAG_HERE           "DRAG TEXTURE HERE"
+#define         UI_TEXT_MATERIAL_TITLE      "Material Properties"
+#define         UI_TEXT_RENDER_TITLE        "Render Settings"
+#define         UI_TEXT_RENDER_SCALE        "Render Scale"
+#define         UI_TEXT_RENDER_MODE         "Render Mode"
+#define         UI_TEXT_RENDER_EFFECTS      "Screen Effects"
+#define         UI_TEXT_CAMERA_MODE         "Camera Mode"
+
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
-typedef enum { DEFAULT, ALBEDO, NORMALS, METALNESS, ROUGHNESS, AMBIENT_OCCLUSION, EMISSION, LIGHTING, FRESNEL, IRRADIANCE, REFLECTION } RenderMode;
+typedef enum { DEFAULT, ALBEDO, NORMALS, METALNESS, ROUGHNESS, AMBIENT_OCCLUSION, EMISSION, LIGHTING, FRESNEL, IRRADIANCE, REFLECTIVITY } RenderMode;
 typedef enum { RENDER_SCALE_0_5X, RENDER_SCALE_1X, RENDER_SCALE_2X } RenderScale;
 
 //----------------------------------------------------------------------------------
 // Global Variables Definition
 //----------------------------------------------------------------------------------
-float renderScales[MAX_RENDER_SCALES] = { 0.5f, 1.0f, 2.0f };   // Availables render scales
+const float renderScales[MAX_RENDER_SCALES] = { 0.5f, 1.0f, 2.0f };     // Availables render scales
+int texTitleLength = 0;                                                 // Interface textures menu title length
+int matTitleLength = 0;                                                 // Interface material menu title length
+int renderTitleLength = 0;                                              // Interface render settings title length
+int renderScaleLength = 0;                                              // Interface render scale title length
+int renderModeLength = 0;                                               // Interface render mode title length
+int renderEffectsLength = 0;                                            // Interface screen effects title length
+int cameraModeLength = 0;                                               // Interface camera mode title length
+int titlesLength[MAX_TEXTURES] = { 0 };                                 // Interface material properties lengths
+const char *textureTitles[MAX_TEXTURES] = {                             // Interface material properties titles
+    "Albedo",
+    "Tangent normals",
+    "Metalness",
+    "Roughness",
+    "Ambient occlusion",
+    "Emission",
+    "Parallax"
+};
+const char *renderScalesTitles[MAX_RENDER_SCALES] = {                         // Interface render scale settings titles
+    "0.5X",
+    "1.0X",
+    "2.0X",
+};
+const char *renderModesTitles[MAX_RENDER_MODES] = {                         // Interface render scale settings titles
+    "PBR (default)",
+    "Albedo",
+    "Tangent Normals",
+    "Metalness",
+    "Roughness",
+    "Ambient Occlusion",
+    "Emission",
+    "Lighting",
+    "Fresnel",
+    "Irradiance (GI)",
+    "Reflectivity"
+};
+
+// Interface settings values
+BackgroundMode backMode = BACKGROUND_SKY;
+RenderMode renderMode = DEFAULT;
+RenderScale renderScale = RENDER_SCALE_2X;
+CameraMode cameraMode = CAMERA_FREE;
+Texture2D textures[7] = { 0 };
+bool drawGrid = false;
+bool drawWires = false;
+bool drawLights = true;
+bool drawSkybox = true;
+bool enabledFxaa = true;
+bool enabledBloom = true;
+bool enabledVignette = true;
+
+// Scene resources values
+Model model = { 0 };
+Environment environment = { 0 };
+MaterialPBR matPBR = { 0 };
+Camera camera = { 0 };
 
 //----------------------------------------------------------------------------------
 // Function Declarations
 //----------------------------------------------------------------------------------
-void DrawLight(Light light, bool over);                         // Draw a light gizmo based on light attributes
+void InitInterface(void);                                                                      // Initialize interface texts lengths
+
+void DrawLight(Light light, bool over);                                                        // Draw a light gizmo based on light attributes
+void DrawInterface(Vector2 size, int scrolling);                                               // Draw interface based on current window dimensions
+void DrawTextureMap(int id, Texture2D texture, Vector2 position);                              // Draw interface PBR texture or alternative text
 
 //----------------------------------------------------------------------------------
 // Main program
@@ -123,25 +213,10 @@ int main()
     SetWindowMinSize(960, 540);
 
     // Define render settings states
-    RenderMode renderMode = DEFAULT;
-    RenderScale renderScale = RENDER_SCALE_2X;
-    CameraMode cameraMode = CAMERA_FREE;
-    BackgroundMode backMode = BACKGROUND_SKY;
-    bool drawGrid = false;
-    bool drawWires = false;
-    bool drawLights = true;
-    bool drawSkybox = true;
-    bool drawFPS = true;
     bool drawUI = true;
     bool canMoveCamera = true;
     bool overUI = false;
     int scrolling = 0;
-    Texture2D textures[7] = { 0 };
-
-    // Define post-processing effects enabled states
-    bool enabledFxaa = true;
-    bool enabledBloom = true;
-    bool enabledVignette = true;
 
     // Initialize lighting rotation
     int mousePosX = 0;
@@ -149,17 +224,18 @@ int main()
     float lightAngle = 0.0f;
 
     // Define the camera to look into our 3d world, its mode and model drawing position
-    float rotationAngle = 0.0f;
-    Vector3 rotationAxis = { 0.0f, 1.0f, 0.0f };
-    Camera camera = {{ 3.5f, 3.0f, 3.5f }, { 0.0f, 0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f }, CAMERA_FOV };
+    camera.position = (Vector3){ 3.5f, 3.0f, 3.5f };
+    camera.target = (Vector3){ 0.0f, 0.5f, 0.0f };
+    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
+    camera.fovy = CAMERA_FOV;
     SetCameraMode(camera, cameraMode);
 
     // Define environment attributes
-    Environment environment = LoadEnvironment(PATH_TEXTURES_HDR, CUBEMAP_SIZE, IRRADIANCE_SIZE, PREFILTERED_SIZE, BRDF_SIZE);
+    environment = LoadEnvironment(PATH_TEXTURES_HDR, CUBEMAP_SIZE, IRRADIANCE_SIZE, PREFILTERED_SIZE, BRDF_SIZE);
 
     // Load external resources
-    Model model = LoadModel(PATH_MODEL);
-    MaterialPBR matPBR = SetupMaterialPBR(environment, (Color){ 255 }, 255, 255);
+    model = LoadModel(PATH_MODEL);
+    matPBR = SetupMaterialPBR(environment, (Color){ 255 }, 255, 255);
 #if defined(PATH_TEXTURES_ALBEDO)
     SetMaterialTexturePBR(&matPBR, PBR_ALBEDO, LoadTexture(PATH_TEXTURES_ALBEDO));
     SetTextureFilter(matPBR.albedo.bitmap, FILTER_BILINEAR);
@@ -214,7 +290,7 @@ int main()
         CreateLight(LIGHT_POINT, (Vector3){ LIGHT_DISTANCE, LIGHT_HEIGHT, 0.0f }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 255, 0, 0, 255 }, environment),
         CreateLight(LIGHT_POINT, (Vector3){ 0.0f, LIGHT_HEIGHT, LIGHT_DISTANCE }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 0, 255, 0, 255 }, environment),
         CreateLight(LIGHT_POINT, (Vector3){ -LIGHT_DISTANCE, LIGHT_HEIGHT, 0.0f }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 0, 0, 255, 255 }, environment),
-        CreateLight(LIGHT_DIRECTIONAL, (Vector3){ 0, LIGHT_HEIGHT*2.0f, -LIGHT_DISTANCE }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 255, 0, 255, 255 }, environment)
+        CreateLight(LIGHT_DIRECTIONAL, (Vector3){ 0.0f, LIGHT_HEIGHT*2.0f, -LIGHT_DISTANCE }, (Vector3){ 0.0f, 0.0f, 0.0f }, (Color){ 255, 0, 255, 255 }, environment)
     };
     int totalLights = GetLightsCount();
 
@@ -235,8 +311,7 @@ int main()
     {
         // Update
         //--------------------------------------------------------------------------
-        // Update current rotation angle
-        rotationAngle += ROTATION_SPEED;
+        // Update mouse collision states
         overUI = CheckCollisionPointRec(GetMousePosition(), (Rectangle){ GetScreenWidth() - UI_MENU_WIDTH, 0, UI_MENU_WIDTH, GetScreenHeight() });
 
         // Check if a file is dropped
@@ -309,10 +384,27 @@ int main()
         // Check for display UI switch states
         if (IsKeyPressed(KEY_SPACE)) drawUI = !drawUI;
 
-        // Check for switch camera mode input
+        // Check for render mode shortcut inputs
+        if (IsKeyPressed(KEY_F1)) renderMode = DEFAULT;
+        else if (IsKeyPressed(KEY_F2)) renderMode = ALBEDO;
+        else if (IsKeyPressed(KEY_F3)) renderMode = NORMALS;
+        else if (IsKeyPressed(KEY_F4)) renderMode = METALNESS;
+        else if (IsKeyPressed(KEY_F5)) renderMode = ROUGHNESS;
+        else if (IsKeyPressed(KEY_F6)) renderMode = AMBIENT_OCCLUSION;
+        else if (IsKeyPressed(KEY_F7)) renderMode = EMISSION;
+        else if (IsKeyPressed(KEY_F8)) renderMode = LIGHTING;
+        else if (IsKeyPressed(KEY_F9)) renderMode = FRESNEL;
+        else if (IsKeyPressed(KEY_F10)) renderMode = IRRADIANCE;
+        else if (IsKeyPressed(KEY_F11)) renderMode = REFLECTIVITY;
+
+        // Check for render scale shortcut inputs
+        if ((GetKeyPressed() == KEY_NUMPAD_SUM) && (renderScale < RENDER_SCALE_2X)) renderScale++;
+        else if ((GetKeyPressed() == KEY_NUMPAD_SUBTRACT) && (renderScale > RENDER_SCALE_0_5X)) renderScale--;
+
+        // Check for switch camera mode shortcut input
         if (IsKeyPressed(KEY_C))
         {
-            rotationAngle = 0.0f;
+            // Switch between free camera and orbital camera
             cameraMode = ((cameraMode == CAMERA_FREE) ? CAMERA_ORBITAL : CAMERA_FREE);
             camera.position = (Vector3){ 3.5f, ((cameraMode == CAMERA_FREE) ? 3.0f : 2.5f), 3.5f };
             camera.target = (Vector3){ 0.0f, ((cameraMode == CAMERA_FREE) ? 0.5f : 1.0f), 0.0f };
@@ -321,11 +413,10 @@ int main()
             SetCameraMode(camera, cameraMode);
         }
 
-        // Check for scene camera reset input
+        // Check for scene camera reset shortcut input
         if (IsKeyPressed(KEY_R))
         {
-            // Reset rotation and camera values
-            rotationAngle = 0.0f;
+            // Reset camera values
             cameraMode = CAMERA_FREE;
             camera.position = (Vector3){ 3.5f, 3.0f, 3.5f };
             camera.target = (Vector3){ 0.0f, 0.5f, 0.0f };
@@ -372,34 +463,6 @@ int main()
 
         // Fix camera move state if camera mode is orbital and mouse middle button is not down
         if (!canMoveCamera && ((!IsMouseButtonDown(MOUSE_MIDDLE_BUTTON) && (cameraMode == CAMERA_ORBITAL)))) canMoveCamera = true;
-
-        /*// DEBUG INPUTS
-        // Check for render mode inputs
-        if (IsKeyPressed(KEY_F1)) renderMode = DEFAULT;
-        else if (IsKeyPressed(KEY_F2)) renderMode = ALBEDO;
-        else if (IsKeyPressed(KEY_F3)) renderMode = NORMALS;
-        else if (IsKeyPressed(KEY_F4)) renderMode = METALNESS;
-        else if (IsKeyPressed(KEY_F5)) renderMode = ROUGHNESS;
-        else if (IsKeyPressed(KEY_F6)) renderMode = AMBIENT_OCCLUSION;
-        else if (IsKeyPressed(KEY_F7)) renderMode = EMISSION;
-        else if (IsKeyPressed(KEY_F8)) renderMode = LIGHTING;
-        else if (IsKeyPressed(KEY_F9)) renderMode = FRESNEL;
-        else if (IsKeyPressed(KEY_F10)) renderMode = IRRADIANCE;
-        else if (IsKeyPressed(KEY_F11)) renderMode = REFLECTION;
-
-        // Check for render scale inputs
-        if (IsKeyPressed(KEY_Y) && (renderScale < RENDER_SCALE_2X))
-        {
-            renderScale++;
-            UnloadRenderTexture(fxTarget);
-            fxTarget = LoadRenderTexture(GetScreenWidth()*renderScales[renderScale], GetScreenHeight()*renderScales[renderScale]);
-        }
-        else if (IsKeyPressed(KEY_H) && (renderScale > RENDER_SCALE_0_5X))
-        {
-            renderScale--;
-            UnloadRenderTexture(fxTarget);
-            fxTarget = LoadRenderTexture(GetScreenWidth()*renderScales[renderScale], GetScreenHeight()*renderScales[renderScale]);
-        }*/
 
         // Update lights values
         for (int i = 0; i < totalLights; i++)
@@ -450,8 +513,8 @@ int main()
                     if (drawGrid) DrawGrid(10, 1.0f);
 
                     // Draw loaded model using physically based rendering
-                    DrawModelPBR(model, matPBR, (Vector3){ 0, 0, 0 }, rotationAxis, rotationAngle, (Vector3){ MODEL_SCALE, MODEL_SCALE, MODEL_SCALE });
-                    if (drawWires) DrawModelWires(model, (Vector3){ 0, 0, 0 }, MODEL_SCALE, DARKGRAY);
+                    DrawModelPBR(model, matPBR, (Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ 0.0f, 1.0f, 0.0f }, 0.0f, (Vector3){ MODEL_SCALE, MODEL_SCALE, MODEL_SCALE });
+                    if (drawWires) DrawModelWires(model, (Vector3){ 0.0f, 0.0f, 0.0f }, MODEL_SCALE, DARKGRAY);
 
                     // Draw light gizmos
                     if (drawLights) for (unsigned int i = 0; (i < totalLights); i++)
@@ -469,13 +532,12 @@ int main()
 
             BeginShaderMode(fxShader);
 
-                DrawTexturePro(fxTarget.texture, (Rectangle){ 0, 0, fxTarget.texture.width, -fxTarget.texture.height }, (Rectangle){ 0, 0, GetScreenWidth(), GetScreenHeight() }, (Vector2){ 0, 0 }, 0.0f, WHITE);
+                DrawTexturePro(fxTarget.texture, (Rectangle){ 0, 0, fxTarget.texture.width, -fxTarget.texture.height }, 
+                               (Rectangle){ 0, 0, GetScreenWidth(), GetScreenHeight() }, (Vector2){ 0.0f, 0.0f }, 0.0f, WHITE);
 
             EndShaderMode();
 
-            if (drawUI) DrawInterface(GetScreenWidth(), GetScreenHeight(), scrolling, textures, 7);
-
-            if (drawFPS) DrawFPS(10, 10);
+            if (drawUI) DrawInterface((Vector2){ GetScreenWidth(), GetScreenHeight() }, scrolling);
 
         EndDrawing();
         //--------------------------------------------------------------------------
@@ -510,6 +572,28 @@ int main()
 //----------------------------------------------------------------------------------
 // Function Declarations
 //----------------------------------------------------------------------------------
+// Initialize interface texts lengths
+void InitInterface(void)
+{
+    // Calculate interface right menu titles lengths
+    texTitleLength = MeasureText(UI_TEXT_TEXTURES_TITLE, UI_TEXT_SIZE_H2);
+    titlesLength[0] = MeasureText(textureTitles[0], UI_TEXT_SIZE_H3);
+    titlesLength[1] = MeasureText(textureTitles[1], UI_TEXT_SIZE_H3);
+    titlesLength[2] = MeasureText(textureTitles[2], UI_TEXT_SIZE_H3);
+    titlesLength[3] = MeasureText(textureTitles[3], UI_TEXT_SIZE_H3);
+    titlesLength[4] = MeasureText(textureTitles[4], UI_TEXT_SIZE_H3);
+    titlesLength[5] = MeasureText(textureTitles[5], UI_TEXT_SIZE_H3);
+    titlesLength[6] = MeasureText(textureTitles[6], UI_TEXT_SIZE_H3);
+
+    // Calculate interface left menu titles lengths
+    matTitleLength = MeasureText(UI_TEXT_MATERIAL_TITLE, UI_TEXT_SIZE_H2);
+    renderTitleLength = MeasureText(UI_TEXT_RENDER_TITLE, UI_TEXT_SIZE_H2);
+    renderScaleLength = MeasureText(UI_TEXT_RENDER_SCALE, UI_TEXT_SIZE_H3);
+    renderModeLength = MeasureText(UI_TEXT_RENDER_MODE, UI_TEXT_SIZE_H3);
+    renderEffectsLength = MeasureText(UI_TEXT_RENDER_EFFECTS, UI_TEXT_SIZE_H3);
+    cameraModeLength = MeasureText(UI_TEXT_CAMERA_MODE, UI_TEXT_SIZE_H3);
+}
+
 // Draw a light gizmo based on light attributes
 void DrawLight(Light light, bool over)
 {
@@ -519,11 +603,108 @@ void DrawLight(Light light, bool over)
         {
             DrawSphere(light.position, (over ? (LIGHT_RADIUS + LIGHT_OFFSET) : LIGHT_RADIUS), (light.enabled ? light.color : GRAY));
             DrawLine3D(light.position, light.target, (light.enabled ? light.color : DARKGRAY));
-            DrawCircle3D(light.target, LIGHT_RADIUS, (Vector3){ 1, 0, 0 }, 90, (light.enabled ? light.color : GRAY));
-            DrawCircle3D(light.target, LIGHT_RADIUS, (Vector3){ 0, 1, 0 }, 90, (light.enabled ? light.color : GRAY));
-            DrawCircle3D(light.target, LIGHT_RADIUS, (Vector3){ 0, 0, 1 }, 90, (light.enabled ? light.color : GRAY));
+            DrawCircle3D(light.target, LIGHT_RADIUS, (Vector3){ 1.0f, 0.0f, 0.0f }, 90.0f, (light.enabled ? light.color : GRAY));
+            DrawCircle3D(light.target, LIGHT_RADIUS, (Vector3){ 0.0f, 1.0f, 0.0f }, 90.0f, (light.enabled ? light.color : GRAY));
+            DrawCircle3D(light.target, LIGHT_RADIUS, (Vector3){ 0.0f, 0.0f, 1.0f }, 90.0f, (light.enabled ? light.color : GRAY));
         } break;
         case LIGHT_POINT: DrawSphere(light.position, (over ? (LIGHT_RADIUS + LIGHT_OFFSET) : LIGHT_RADIUS), (light.enabled ? light.color : GRAY));
         default: break;
+    }
+}
+
+// Draw interface based on current window dimensions
+void DrawInterface(Vector2 size, int scrolling)
+{
+    int padding = scrolling;
+
+    // Draw interface right menu background
+    DrawRectangle(size.x - UI_MENU_WIDTH, 0, UI_MENU_WIDTH, size.y, UI_COLOR_BACKGROUND);
+    DrawRectangle(size.x - UI_MENU_WIDTH - UI_MENU_BORDER, 0, UI_MENU_BORDER, size.y, UI_COLOR_PRIMARY);
+
+    // Draw textures title
+    DrawText(UI_TEXT_TEXTURES_TITLE, size.x - UI_MENU_WIDTH + UI_MENU_WIDTH/2 - texTitleLength/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
+
+    // Draw textures
+    padding = scrolling + UI_MENU_PADDING*2 + UI_MENU_PADDING*2.5f + UI_MENU_PADDING*1.25f;
+    for (int i = 0; i < MAX_TEXTURES; i++)
+    {
+        Vector2 pos = { size.x - UI_MENU_WIDTH + UI_MENU_WIDTH/2, padding + UI_MENU_WIDTH*0.375f - UI_TEXT_SIZE_H3/2 + i*UI_TEXTURES_PADDING };
+        DrawTextureMap(i, textures[i], pos);
+    }
+
+    // Reset padding to start with left menu drawing
+    padding = 0;
+
+    // Draw interface left menu background
+    DrawRectangle(0, 0, UI_MENU_WIDTH, size.y, UI_COLOR_BACKGROUND);
+    DrawRectangle(UI_MENU_WIDTH - UI_MENU_BORDER, 0, UI_MENU_BORDER, size.y, UI_COLOR_PRIMARY);
+
+    // Draw material title
+    DrawText(UI_TEXT_MATERIAL_TITLE, UI_MENU_WIDTH/2 - matTitleLength/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
+
+    // Draw albedo RGB sliders
+    padding += UI_MENU_PADDING*2.5f;
+    DrawText(textureTitles[0], UI_MENU_WIDTH/2 - titlesLength[0]/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
+    padding += UI_MENU_PADDING*2.25f;
+    DrawText("R", UI_MENU_WIDTH/10 - MeasureText("R", UI_TEXT_SIZE_H3)/2, padding + UI_MENU_BORDER, UI_TEXT_SIZE_H3, UI_COLOR_SECONDARY);
+    matPBR.albedo.color.r = (int)GuiSlider((Rectangle){ UI_MENU_BORDER*2 + UI_MENU_WIDTH/2 - UI_MENU_WIDTH*0.75f/2, 
+                                         padding, UI_MENU_WIDTH*0.75f, UI_SLIDER_HEIGHT }, matPBR.albedo.color.r, 0, 255);
+    padding += UI_MENU_PADDING*2;
+    DrawText("G", UI_MENU_WIDTH/10 - MeasureText("G", UI_TEXT_SIZE_H3)/2, padding + UI_MENU_BORDER, UI_TEXT_SIZE_H3, UI_COLOR_SECONDARY);
+    matPBR.albedo.color.g = (int)GuiSlider((Rectangle){ UI_MENU_BORDER*2 + UI_MENU_WIDTH/2 - UI_MENU_WIDTH*0.75f/2, 
+                                         padding, UI_MENU_WIDTH*0.75f, UI_SLIDER_HEIGHT }, matPBR.albedo.color.g, 0, 255);
+    padding += UI_MENU_PADDING*2;
+    DrawText("B", UI_MENU_WIDTH/10 - MeasureText("B", UI_TEXT_SIZE_H3)/2, padding + UI_MENU_BORDER, UI_TEXT_SIZE_H3, UI_COLOR_SECONDARY);
+    matPBR.albedo.color.b = (int)GuiSlider((Rectangle){ UI_MENU_BORDER*2 + UI_MENU_WIDTH/2 - UI_MENU_WIDTH*0.75f/2, 
+                                         padding, UI_MENU_WIDTH*0.75f, UI_SLIDER_HEIGHT }, matPBR.albedo.color.b, 0, 255);
+
+    // Draw metalness slider
+    padding += UI_MENU_PADDING*2;
+    DrawText(textureTitles[2], UI_MENU_WIDTH/2 - titlesLength[2]/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
+    padding += UI_MENU_PADDING*2.25f;
+    matPBR.metalness.color.r = GuiSlider((Rectangle){ UI_MENU_WIDTH/2 - UI_MENU_WIDTH*0.75f/2, padding, UI_MENU_WIDTH*0.75f, UI_SLIDER_HEIGHT }, matPBR.metalness.color.r, 0.0f, 1.0f);
+
+    // Draw roughness slider
+    padding += UI_MENU_PADDING*2;
+    DrawText(textureTitles[3], UI_MENU_WIDTH/2 - titlesLength[3]/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
+    padding += UI_MENU_PADDING*2.25f;
+    matPBR.roughness.color.r = GuiSlider((Rectangle){ UI_MENU_WIDTH/2 - UI_MENU_WIDTH*0.75f/2, padding, UI_MENU_WIDTH*0.75f, UI_SLIDER_HEIGHT }, matPBR.roughness.color.r, 0.0f, 1.0f);
+
+    // Draw height parallax slider
+    padding += UI_MENU_PADDING*2;
+    DrawText(textureTitles[6], UI_MENU_WIDTH/2 - titlesLength[6]/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
+    padding += UI_MENU_PADDING*2.25f;
+    matPBR.height.color.r = GuiSlider((Rectangle){ UI_MENU_WIDTH/2 - UI_MENU_WIDTH*0.75f/2, padding, UI_MENU_WIDTH*0.75f, UI_SLIDER_HEIGHT }, matPBR.height.color.r, 0.0f, 50.0f);
+
+    // Draw render settings title 
+    padding += UI_MENU_PADDING*2.5f;
+    DrawText(UI_TEXT_RENDER_TITLE, UI_MENU_WIDTH/2 - renderTitleLength/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
+
+    // Draw render scale combo box
+    padding += UI_MENU_PADDING*2.5f;
+    DrawText(UI_TEXT_RENDER_SCALE, UI_MENU_WIDTH/2 - renderScaleLength/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
+    padding += UI_MENU_PADDING*2.25f;
+    renderScale = GuiComboBox((Rectangle){ UI_MENU_WIDTH/2 - UI_MENU_WIDTH*0.3f - UI_MENU_WIDTH*0.6f/8, padding, UI_MENU_WIDTH*0.6f, UI_SLIDER_HEIGHT*1.5f }, MAX_RENDER_SCALES, (char **)renderScalesTitles, renderScale);
+
+    // Draw render mode combo box
+    padding += UI_MENU_PADDING*2.0f;
+    DrawText(UI_TEXT_RENDER_MODE, UI_MENU_WIDTH/2 - renderModeLength/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
+    padding += UI_MENU_PADDING*2.25f;
+    renderMode = GuiComboBox((Rectangle){ UI_MENU_WIDTH/2 - UI_MENU_WIDTH*0.3f - UI_MENU_WIDTH*0.6f/8, padding, UI_MENU_WIDTH*0.6f, UI_SLIDER_HEIGHT*1.5f }, MAX_RENDER_MODES, (char **)renderModesTitles, renderMode);
+}
+
+// Draw interface PBR texture or alternative text
+void DrawTextureMap(int id, Texture2D texture, Vector2 position)
+{
+    Rectangle rect = { position.x - UI_TEXTURES_SIZE/2, position.y - UI_TEXTURES_SIZE/2, UI_TEXTURES_SIZE, UI_TEXTURES_SIZE };
+    DrawRectangle(rect.x - UI_MENU_BORDER, rect.y - UI_MENU_BORDER, rect.width + UI_MENU_BORDER*2, rect.height + UI_MENU_BORDER*2, UI_COLOR_PRIMARY);
+    DrawText(textureTitles[id], position.x - titlesLength[id]/2, position.y - UI_TEXT_SIZE_H3/2 - rect.height*0.6f, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
+
+    // Draw PBR texture or display help message
+    if (texture.id != 0) DrawTexturePro(texture, (Rectangle){ 0, 0, texture.width, texture.height }, rect, (Vector2){ 0.0f, 0.0f }, 0.0f, WHITE);
+    else
+    {
+        DrawRectangleRec(rect, UI_COLOR_SECONDARY);
+        DrawText(UI_TEXT_DRAG_HERE, position.x - MeasureText(UI_TEXT_DRAG_HERE, UI_TEXT_SIZE_H3)/2, position.y, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
     }
 }
