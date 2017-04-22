@@ -75,10 +75,11 @@
 // #define      PATH_TEXTURES_HEIGHT        "resources/textures/dwarf/dwarf_height.png"
 #define         PATH_SHADERS_POSTFX_VS      "resources/shaders/postfx.vs"
 #define         PATH_SHADERS_POSTFX_FS      "resources/shaders/postfx.fs"
+#define         PATH_GUI_STYLE              "resources/monokai.style"
 
 #define         MAX_LIGHTS                  4                   // Max lights supported by shader
 #define         MAX_TEXTURES                7                   // Max number of supported textures in a PBR material
-#define         MAX_RENDER_SCALES           3                   // Max number of available render scales (RenderScale type)
+#define         MAX_RENDER_SCALES           5                   // Max number of available render scales (RenderScale type)
 #define         MAX_RENDER_MODES            11                  // Max number of render modes to switch (RenderMode type)
 #define         MAX_SCROLL                  850                 // Max mouse wheel for interface scrolling
 #define         SCROLL_SPEED                50                  // Interface scrolling speed
@@ -106,6 +107,7 @@
 #define         UI_TEXTURES_SIZE            180
 #define         UI_SLIDER_WIDTH             250
 #define         UI_SLIDER_HEIGHT            20
+#define         UI_CHECKBOX_SIZE            20
 #define         UI_COLOR_BACKGROUND         (Color){ 5, 26, 36, 255 }
 #define         UI_COLOR_SECONDARY          (Color){ 245, 245, 245, 255 }
 #define         UI_COLOR_PRIMARY            (Color){ 234, 83, 77, 255 }
@@ -119,17 +121,22 @@
 #define         UI_TEXT_RENDER_MODE         "Render Mode"
 #define         UI_TEXT_RENDER_EFFECTS      "Screen Effects"
 #define         UI_TEXT_CAMERA_MODE         "Camera Mode"
+#define         UI_TEXT_EFFECTS_TITLE       "Screen Effects"
+#define         UI_TEXT_EFFECTS_FXAA        "   Antialiasing"
+#define         UI_TEXT_EFFECTS_BLOOM       "   Bloom"
+#define         UI_TEXT_EFFECTS_VIGNETTE    "   Vignette"
+#define         UI_TEXT_EFFECTS_WIRE        "   Wireframe"
+#define         UI_TEXT_DRAW_LOGO           "   Draw Logo"
 
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
 typedef enum { DEFAULT, ALBEDO, NORMALS, METALNESS, ROUGHNESS, AMBIENT_OCCLUSION, EMISSION, LIGHTING, FRESNEL, IRRADIANCE, REFLECTIVITY } RenderMode;
-typedef enum { RENDER_SCALE_0_5X, RENDER_SCALE_1X, RENDER_SCALE_2X } RenderScale;
+typedef enum { RENDER_SCALE_0_5X, RENDER_SCALE_1X, RENDER_SCALE_2X, RENDER_SCALE_4X, RENDER_SCALE_8X } RenderScale;
 
 //----------------------------------------------------------------------------------
 // Global Variables Definition
 //----------------------------------------------------------------------------------
-const float renderScales[MAX_RENDER_SCALES] = { 0.5f, 1.0f, 2.0f };     // Availables render scales
 int texTitleLength = 0;                                                 // Interface textures menu title length
 int matTitleLength = 0;                                                 // Interface material menu title length
 int renderTitleLength = 0;                                              // Interface render settings title length
@@ -137,6 +144,12 @@ int renderScaleLength = 0;                                              // Inter
 int renderModeLength = 0;                                               // Interface render mode title length
 int renderEffectsLength = 0;                                            // Interface screen effects title length
 int cameraModeLength = 0;                                               // Interface camera mode title length
+int effectsTitleLength = 0;                                             // Interface screen effects title length
+int fxaaLength = 0;                                                     // Interface FXAA effect enabled title length
+int bloomLength = 0;                                                    // Interface bloom effect enabled title length
+int vignetteLength = 0;                                                 // Interface vignette effect enabled title length
+int wireLength = 0;                                                     // Interface wireframe enabled title length
+int logoLength = 0;                                                     // Interface draw logo enabled title length
 int titlesLength[MAX_TEXTURES] = { 0 };                                 // Interface material properties lengths
 const char *textureTitles[MAX_TEXTURES] = {                             // Interface material properties titles
     "Albedo",
@@ -147,12 +160,14 @@ const char *textureTitles[MAX_TEXTURES] = {                             // Inter
     "Emission",
     "Parallax"
 };
-const char *renderScalesTitles[MAX_RENDER_SCALES] = {                         // Interface render scale settings titles
+const char *renderScalesTitles[MAX_RENDER_SCALES] = {                   // Interface render scale settings titles
     "0.5X",
     "1.0X",
     "2.0X",
+    "4.0X",
+    "8.0X"
 };
-const char *renderModesTitles[MAX_RENDER_MODES] = {                         // Interface render scale settings titles
+const char *renderModesTitles[MAX_RENDER_MODES] = {                     // Interface render scale settings titles
     "PBR (default)",
     "Albedo",
     "Tangent Normals",
@@ -165,6 +180,13 @@ const char *renderModesTitles[MAX_RENDER_MODES] = {                         // I
     "Irradiance (GI)",
     "Reflectivity"
 };
+const float renderScales[MAX_RENDER_SCALES] = {                         // Availables render scales
+    0.5f,
+    1.0f,
+    2.0f,
+    4.0f,
+    8.0f
+};
 
 // Interface settings values
 BackgroundMode backMode = BACKGROUND_SKY;
@@ -173,12 +195,14 @@ RenderScale renderScale = RENDER_SCALE_2X;
 CameraMode cameraMode = CAMERA_FREE;
 Texture2D textures[7] = { 0 };
 bool drawGrid = false;
-bool drawWires = false;
+bool drawWire = false;
 bool drawLights = true;
 bool drawSkybox = true;
+bool drawUI = true;
 bool enabledFxaa = true;
 bool enabledBloom = true;
 bool enabledVignette = true;
+bool drawLogo = true;
 
 // Scene resources values
 Model model = { 0 };
@@ -202,18 +226,19 @@ int main()
 {
     // Initialization
     //------------------------------------------------------------------------------
-    // Enable Multi Sampling Anti Aliasing 4x (if available)
-    SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
+    // Enable V-Sync and window resizable state
+    SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
     InitInterface();
 
     // Change default window icon
     Image icon = LoadImage(PATH_ICON);
+    Texture2D iconTex = LoadTextureFromImage(icon);
     SetWindowIcon(icon);
     SetWindowMinSize(960, 540);
 
     // Define render settings states
-    bool drawUI = true;
+    drawUI = true;
     bool canMoveCamera = true;
     bool overUI = false;
     int scrolling = 0;
@@ -398,8 +423,8 @@ int main()
         else if (IsKeyPressed(KEY_F11)) renderMode = REFLECTIVITY;
 
         // Check for render scale shortcut inputs
-        if ((GetKeyPressed() == KEY_NUMPAD_SUM) && (renderScale < RENDER_SCALE_2X)) renderScale++;
-        else if ((GetKeyPressed() == KEY_NUMPAD_SUBTRACT) && (renderScale > RENDER_SCALE_0_5X)) renderScale--;
+        if ((GetKeyPressed() == KEY_NUMPAD_SUM) && (renderScale < (MAX_RENDER_SCALES - 1))) renderScale++;
+        else if ((GetKeyPressed() == KEY_NUMPAD_SUBTRACT) && (renderScale > 0)) renderScale--;
 
         // Check for switch camera mode shortcut input
         if (IsKeyPressed(KEY_C))
@@ -514,7 +539,7 @@ int main()
 
                     // Draw loaded model using physically based rendering
                     DrawModelPBR(model, matPBR, (Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ 0.0f, 1.0f, 0.0f }, 0.0f, (Vector3){ MODEL_SCALE, MODEL_SCALE, MODEL_SCALE });
-                    if (drawWires) DrawModelWires(model, (Vector3){ 0.0f, 0.0f, 0.0f }, MODEL_SCALE, DARKGRAY);
+                    if (drawWire) DrawModelWires(model, (Vector3){ 0.0f, 0.0f, 0.0f }, MODEL_SCALE, DARKGRAY);
 
                     // Draw light gizmos
                     if (drawLights) for (unsigned int i = 0; (i < totalLights); i++)
@@ -538,6 +563,14 @@ int main()
             EndShaderMode();
 
             if (drawUI) DrawInterface((Vector2){ GetScreenWidth(), GetScreenHeight() }, scrolling);
+            
+            // Draw logo if enabled based on interface menu padding
+            if (drawLogo)
+            {
+                int padding = GetScreenWidth() - UI_MENU_PADDING*1.25f - iconTex.width;
+                if (drawUI) padding -= UI_MENU_WIDTH;
+                DrawTexture(iconTex, padding, GetScreenHeight() - UI_MENU_PADDING*1.25f - iconTex.height, WHITE);
+            }
 
         EndDrawing();
         //--------------------------------------------------------------------------
@@ -559,6 +592,7 @@ int main()
 
     // Unload other resources
     UnloadImage(icon);
+    UnloadTexture(iconTex);
     UnloadRenderTexture(fxTarget);
     UnloadShader(fxShader);
 
@@ -575,6 +609,9 @@ int main()
 // Initialize interface texts lengths
 void InitInterface(void)
 {
+    // Load interface style and colors from file
+    LoadGuiStyle(PATH_GUI_STYLE);
+
     // Calculate interface right menu titles lengths
     texTitleLength = MeasureText(UI_TEXT_TEXTURES_TITLE, UI_TEXT_SIZE_H2);
     titlesLength[0] = MeasureText(textureTitles[0], UI_TEXT_SIZE_H3);
@@ -592,6 +629,12 @@ void InitInterface(void)
     renderModeLength = MeasureText(UI_TEXT_RENDER_MODE, UI_TEXT_SIZE_H3);
     renderEffectsLength = MeasureText(UI_TEXT_RENDER_EFFECTS, UI_TEXT_SIZE_H3);
     cameraModeLength = MeasureText(UI_TEXT_CAMERA_MODE, UI_TEXT_SIZE_H3);
+    effectsTitleLength = MeasureText(UI_TEXT_EFFECTS_TITLE, UI_TEXT_SIZE_H2);
+    fxaaLength = MeasureText(UI_TEXT_EFFECTS_FXAA, UI_TEXT_SIZE_H3);
+    bloomLength = MeasureText(UI_TEXT_EFFECTS_BLOOM, UI_TEXT_SIZE_H3);
+    vignetteLength = MeasureText(UI_TEXT_EFFECTS_VIGNETTE, UI_TEXT_SIZE_H3);
+    wireLength = MeasureText(UI_TEXT_EFFECTS_WIRE, UI_TEXT_SIZE_H3);
+    logoLength = MeasureText(UI_TEXT_DRAW_LOGO, UI_TEXT_SIZE_H3);
 }
 
 // Draw a light gizmo based on light attributes
@@ -623,6 +666,7 @@ void DrawInterface(Vector2 size, int scrolling)
 
     // Draw textures title
     DrawText(UI_TEXT_TEXTURES_TITLE, size.x - UI_MENU_WIDTH + UI_MENU_WIDTH/2 - texTitleLength/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
+    DrawRectangle(size.x - UI_MENU_WIDTH + UI_MENU_WIDTH/2 - texTitleLength/2, padding + UI_MENU_PADDING*2.4f, texTitleLength, 2, UI_COLOR_PRIMARY);
 
     // Draw textures
     padding = scrolling + UI_MENU_PADDING*2 + UI_MENU_PADDING*2.5f + UI_MENU_PADDING*1.25f;
@@ -641,6 +685,7 @@ void DrawInterface(Vector2 size, int scrolling)
 
     // Draw material title
     DrawText(UI_TEXT_MATERIAL_TITLE, UI_MENU_WIDTH/2 - matTitleLength/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
+    DrawRectangle(UI_MENU_WIDTH/2 - matTitleLength/2, padding + UI_MENU_PADDING*2.4f, matTitleLength, 2, UI_COLOR_PRIMARY);
 
     // Draw albedo RGB sliders
     padding += UI_MENU_PADDING*2.5f;
@@ -679,6 +724,7 @@ void DrawInterface(Vector2 size, int scrolling)
     // Draw render settings title 
     padding += UI_MENU_PADDING*2.5f;
     DrawText(UI_TEXT_RENDER_TITLE, UI_MENU_WIDTH/2 - renderTitleLength/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
+    DrawRectangle(UI_MENU_WIDTH/2 - renderTitleLength/2, padding + UI_MENU_PADDING*2.4f, renderTitleLength, 2, UI_COLOR_PRIMARY);
 
     // Draw render scale combo box
     padding += UI_MENU_PADDING*2.5f;
@@ -691,6 +737,31 @@ void DrawInterface(Vector2 size, int scrolling)
     DrawText(UI_TEXT_RENDER_MODE, UI_MENU_WIDTH/2 - renderModeLength/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
     padding += UI_MENU_PADDING*2.25f;
     renderMode = GuiComboBox((Rectangle){ UI_MENU_WIDTH/2 - UI_MENU_WIDTH*0.3f - UI_MENU_WIDTH*0.6f/8, padding, UI_MENU_WIDTH*0.6f, UI_SLIDER_HEIGHT*1.5f }, MAX_RENDER_MODES, (char **)renderModesTitles, renderMode);
+
+    // Draw post-processing effects title 
+    padding += UI_MENU_PADDING*3;
+    DrawText(UI_TEXT_EFFECTS_TITLE, UI_MENU_WIDTH/2 - effectsTitleLength/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
+    DrawRectangle(UI_MENU_WIDTH/2 - renderTitleLength/2, padding + UI_MENU_PADDING*2.4f, renderTitleLength, 2, UI_COLOR_PRIMARY);
+
+    // Draw FXAA effect enabled state checkbox
+    padding += UI_MENU_PADDING*4.0f;
+    enabledFxaa = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, UI_TEXT_EFFECTS_FXAA, enabledFxaa);
+
+    // Draw bloom effect enabled state checkbox
+    padding += UI_MENU_PADDING*2.5f;
+    enabledBloom = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, UI_TEXT_EFFECTS_BLOOM, enabledBloom);
+
+    // Draw vignette effect enabled state checkbox
+    padding += UI_MENU_PADDING*2.5f;
+    enabledVignette = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, UI_TEXT_EFFECTS_VIGNETTE, enabledVignette);
+
+    // Draw wireframe effect enabled state checkbox
+    padding += UI_MENU_PADDING*2.5f;
+    drawWire = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, UI_TEXT_EFFECTS_WIRE, drawWire);
+
+    // Draw draw logo enabled state checkbox
+    padding += UI_MENU_PADDING*2.5f;
+    drawLogo = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, UI_TEXT_DRAW_LOGO, drawLogo);
 }
 
 // Draw interface PBR texture or alternative text
