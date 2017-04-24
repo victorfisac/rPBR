@@ -65,14 +65,14 @@
 
 #define         PATH_ICON                   "resources/textures/rpbr_icon.png"
 #define         PATH_TEXTURES_HDR           "resources/textures/hdr/pinetree.hdr"
-#define         PATH_MODEL                  "resources/models/dwarf.obj"
-#define         PATH_TEXTURES_ALBEDO        "resources/textures/dwarf/dwarf_albedo.png"
-#define         PATH_TEXTURES_NORMALS       "resources/textures/dwarf/dwarf_normals.png"
-#define         PATH_TEXTURES_METALNESS     "resources/textures/dwarf/dwarf_metalness.png"
-#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/dwarf/dwarf_roughness.png"
-// #define      PATH_TEXTURES_AO            "resources/textures/dwarf/dwarf_ao.png"
-// #define      PATH_TEXTURES_EMISSION      "resources/textures/dwarf/dwarf_emission.png"
-// #define      PATH_TEXTURES_HEIGHT        "resources/textures/dwarf/dwarf_height.png"
+#define         PATH_MODEL                  "resources/models/cerberus.obj"
+#define         PATH_TEXTURES_ALBEDO        "resources/textures/cerberus/cerberus_albedo.png"
+#define         PATH_TEXTURES_NORMALS       "resources/textures/cerberus/cerberus_normals.png"
+#define         PATH_TEXTURES_METALNESS     "resources/textures/cerberus/cerberus_metalness.png"
+#define         PATH_TEXTURES_ROUGHNESS     "resources/textures/cerberus/cerberus_roughness.png"
+#define         PATH_TEXTURES_AO            "resources/textures/cerberus/cerberus_ao.png"
+// #define      PATH_TEXTURES_EMISSION      "resources/textures/cerberus/cerberus_emission.png"
+// #define      PATH_TEXTURES_HEIGHT        "resources/textures/cerberus/cerberus_height.png"
 #define         PATH_SHADERS_POSTFX_VS      "resources/shaders/postfx.vs"
 #define         PATH_SHADERS_POSTFX_FS      "resources/shaders/postfx.fs"
 #define         PATH_GUI_STYLE              "resources/monokai.style"
@@ -260,7 +260,7 @@ int main()
 
     // Load external resources
     model = LoadModel(PATH_MODEL);
-    matPBR = SetupMaterialPBR(environment, (Color){ 255 }, 255, 255);
+    matPBR = SetupMaterialPBR(environment, (Color){ 255, 255, 255, 255 }, 255, 255);
 #if defined(PATH_TEXTURES_ALBEDO)
     SetMaterialTexturePBR(&matPBR, PBR_ALBEDO, LoadTexture(PATH_TEXTURES_ALBEDO));
     SetTextureFilter(matPBR.albedo.bitmap, FILTER_BILINEAR);
@@ -707,19 +707,19 @@ void DrawInterface(Vector2 size, int scrolling)
     padding += UI_MENU_PADDING*2;
     DrawText(textureTitles[2], UI_MENU_WIDTH/2 - titlesLength[2]/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
     padding += UI_MENU_PADDING*2.25f;
-    matPBR.metalness.color.r = GuiSlider((Rectangle){ UI_MENU_WIDTH/2 - UI_MENU_WIDTH*0.75f/2, padding, UI_MENU_WIDTH*0.75f, UI_SLIDER_HEIGHT }, matPBR.metalness.color.r, 0.0f, 1.0f);
+    matPBR.metalness.color.r = (int)GuiSlider((Rectangle){ UI_MENU_WIDTH/2 - UI_MENU_WIDTH*0.75f/2, padding, UI_MENU_WIDTH*0.75f, UI_SLIDER_HEIGHT }, matPBR.metalness.color.r, 0, 255);
 
     // Draw roughness slider
     padding += UI_MENU_PADDING*2;
     DrawText(textureTitles[3], UI_MENU_WIDTH/2 - titlesLength[3]/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
     padding += UI_MENU_PADDING*2.25f;
-    matPBR.roughness.color.r = GuiSlider((Rectangle){ UI_MENU_WIDTH/2 - UI_MENU_WIDTH*0.75f/2, padding, UI_MENU_WIDTH*0.75f, UI_SLIDER_HEIGHT }, matPBR.roughness.color.r, 0.0f, 1.0f);
+    matPBR.roughness.color.r = (int)GuiSlider((Rectangle){ UI_MENU_WIDTH/2 - UI_MENU_WIDTH*0.75f/2, padding, UI_MENU_WIDTH*0.75f, UI_SLIDER_HEIGHT }, matPBR.roughness.color.r, 0, 255);
 
     // Draw height parallax slider
     padding += UI_MENU_PADDING*2;
     DrawText(textureTitles[6], UI_MENU_WIDTH/2 - titlesLength[6]/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
     padding += UI_MENU_PADDING*2.25f;
-    matPBR.height.color.r = GuiSlider((Rectangle){ UI_MENU_WIDTH/2 - UI_MENU_WIDTH*0.75f/2, padding, UI_MENU_WIDTH*0.75f, UI_SLIDER_HEIGHT }, matPBR.height.color.r, 0.0f, 50.0f);
+    matPBR.height.color.r = (int)GuiSlider((Rectangle){ UI_MENU_WIDTH/2 - UI_MENU_WIDTH*0.75f/2, padding, UI_MENU_WIDTH*0.75f, UI_SLIDER_HEIGHT }, matPBR.height.color.r, 0, 255);
 
     // Draw render settings title 
     padding += UI_MENU_PADDING*2.5f;
