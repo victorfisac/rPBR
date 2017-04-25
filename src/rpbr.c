@@ -81,12 +81,10 @@
 #define         MAX_CAMERA_TYPES            2                   // Max number of camera modes to switch (CameraType type)
 #define         MAX_SUPPORTED_EXTENSIONS    5                   // Max number of supported image file extensions (JPG, PNG, BMP, TGA and PSD)
 #define         MAX_SCROLL                  850                 // Max mouse wheel for interface scrolling
-#define         SCROLL_SPEED                50                  // Interface scrolling speed
 
+#define         SCROLL_SPEED                50                  // Interface scrolling speed
 #define         CAMERA_FOV                  60.0f               // Camera global field of view
 #define         MODEL_SCALE                 1.75f               // Model scale transformation for rendering
-#define         MODEL_OFFSET                0.45f               // Distance between models for rendering
-#define         ROTATION_SPEED              0.0f                // Models rotation speed
 
 #define         LIGHT_SPEED                 0.1f                // Light rotation input speed
 #define         LIGHT_DISTANCE              3.5f                // Light distance from center of world
