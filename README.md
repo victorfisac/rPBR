@@ -10,20 +10,21 @@ The viewer uses a High Dynamic Range (HDR) file to load and create an environmen
 The header contains a few customizable define values. I set the values that gived me the best results.
 
 ```c
-#define         MODEL_SCALE                 1.75f           // Model scale transformation for rendering
-#define         MODEL_OFFSET                0.45f           // Distance between models for rendering
-#define         ROTATION_SPEED              0.0f            // Models rotation speed
+#define         WINDOW_WIDTH                1440                // Default screen width during program initialization
+#define         WINDOW_HEIGHT               810                 // Default screen height during program initialization
+#define         WINDOW_MIN_WIDTH            960                 // Resizable window minimum width
+#define         WINDOW_MIN_HEIGHT           540                 // Resizable window minimum height
 
-#define         LIGHT_SPEED                 0.1f            // Light rotation input speed
-#define         LIGHT_DISTANCE              3.5f            // Light distance from center of world
-#define         LIGHT_HEIGHT                1.0f            // Light height from center of world
-#define         LIGHT_RADIUS                0.05f           // Light gizmo drawing radius
-#define         LIGHT_OFFSET                0.03f           // Light gizmo drawing radius when mouse is over
+#define         LIGHT_SPEED                 0.1f                // Light rotation input speed
+#define         LIGHT_DISTANCE              3.5f                // Light distance from center of world
+#define         LIGHT_HEIGHT                1.0f                // Light height from center of world
+#define         LIGHT_RADIUS                0.05f               // Light gizmo drawing radius
+#define         LIGHT_OFFSET                0.03f               // Light gizmo drawing radius when mouse is over
 
-#define         CUBEMAP_SIZE                1024            // Cubemap texture size
-#define         IRRADIANCE_SIZE             32              // Irradiance map from cubemap texture size
-#define         PREFILTERED_SIZE            256             // Prefiltered HDR environment map texture size
-#define         BRDF_SIZE                   512             // BRDF LUT texture map size
+#define         CUBEMAP_SIZE                1024                // Cubemap texture size
+#define         IRRADIANCE_SIZE             32                  // Irradiance map from cubemap texture size
+#define         PREFILTERED_SIZE            256                 // Prefiltered HDR environment map texture size
+#define         BRDF_SIZE                   512                 // BRDF LUT texture map size
 ```
 
 _Note: paths to environment and physically based rendering shaders are defined in pbrcore.h. Check the paths if your program doesn't load shaders properly._
