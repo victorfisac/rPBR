@@ -36,13 +36,15 @@ rPBR uses the following C libraries
 
    *  [raylib.h](https://github.com/raysan5/raylib/blob/master/src/raylib.h)     - raylib framework for window management and inputs.
    *  [raygui.h](https://github.com/raysan5/raygui/blob/master/raygui.h)     - raylib user interface drawing functions.
-   *  [math.h](https://github.com/Alexpux/mingw-w64/blob/master/mingw-w64-headers/crt/math.h)       - Math operations functions [pow()].
+   *  [math.h](https://github.com/Alexpux/mingw-w64/blob/master/mingw-w64-headers/crt/math.h)       - Math operations functions [powf()].
    *  [stb_image.h](https://github.com/nothings/stb/blob/master/stb_image.h)  - Image loading [Sean Barret].
    *  [glad.h](https://github.com/glfw/glfw/blob/master/deps/glad/glad.h)       - OpenGL API [3.3 Core profile].
 
 
 Screenshots
 -----
+<img src="https://github.com/victorfisac/rPBR/blob/master/screenshots/rpbr_demo.png">
+
 <img src="https://github.com/victorfisac/rPBR/blob/master/screenshots/pbr_cerberus.png">
 
 <img src="https://github.com/victorfisac/rPBR/blob/master/screenshots/pbr_gold.png">
