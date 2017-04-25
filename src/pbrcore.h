@@ -48,7 +48,7 @@
 //----------------------------------------------------------------------------------
 // Includes
 //----------------------------------------------------------------------------------
-#include <math.h>                           // Required for: pow()
+#include <math.h>                           // Required for: powf()
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "external/stb_image.h"             // Required for image loading
@@ -57,26 +57,23 @@
 //----------------------------------------------------------------------------------
 // Defines
 //----------------------------------------------------------------------------------
-#define         PATH_PBR_VS                 "resources/shaders/pbr.vs"
-#define         PATH_PBR_FS                 "resources/shaders/pbr.fs"
-#define         PATH_CUBE_VS                "resources/shaders/cubemap.vs"
-#define         PATH_CUBE_FS                "resources/shaders/cubemap.fs"
-#define         PATH_SKYBOX_VS              "resources/shaders/skybox.vs"
-#define         PATH_SKYBOX_FS              "resources/shaders/skybox.fs"
-#define         PATH_IRRADIANCE_FS          "resources/shaders/irradiance.fs"
-#define         PATH_PREFILTER_FS           "resources/shaders/prefilter.fs"
-#define         PATH_BRDF_VS                "resources/shaders/brdf.vs"
-#define         PATH_BRDF_FS                "resources/shaders/brdf.fs"
+#define         MAX_LIGHTS                  4                                       // Max lights supported by shader
+#define         MAX_MIPMAP_LEVELS           5                                       // Max number of prefilter texture mipmaps
+
+#define         PATH_PBR_VS                 "resources/shaders/pbr.vs"              // Path to physically based rendering vertex shader
+#define         PATH_PBR_FS                 "resources/shaders/pbr.fs"              // Path to physically based rendering fragment shader
+#define         PATH_CUBE_VS                "resources/shaders/cubemap.vs"          // Path to equirectangular to cubemap vertex shader
+#define         PATH_CUBE_FS                "resources/shaders/cubemap.fs"          // Path to equirectangular to cubemap fragment shader
+#define         PATH_SKYBOX_VS              "resources/shaders/skybox.vs"           // Path to skybox vertex shader
+#define         PATH_SKYBOX_FS              "resources/shaders/skybox.fs"           // Path to skybox vertex shader
+#define         PATH_IRRADIANCE_FS          "resources/shaders/irradiance.fs"       // Path to irradiance (GI) calculation fragment shader
+#define         PATH_PREFILTER_FS           "resources/shaders/prefilter.fs"        // Path to reflection prefilter calculation fragment shader
+#define         PATH_BRDF_VS                "resources/shaders/brdf.vs"             // Path to bidirectional reflectance distribution function vertex shader 
+#define         PATH_BRDF_FS                "resources/shaders/brdf.fs"             // Path to bidirectional reflectance distribution function fragment shader
 
 //----------------------------------------------------------------------------------
 // Structs and enums
 //----------------------------------------------------------------------------------
-typedef enum {
-    BACKGROUND_SKY,
-    BACKGROUND_BLURSKY,
-    BACKGROUND_AMBIENT
-} BackgroundMode;
-
 typedef enum {
     LIGHT_DIRECTIONAL,
     LIGHT_POINT
@@ -148,6 +145,7 @@ static int lightsCount = 0;                     // Current amount of created lig
 //----------------------------------------------------------------------------------
 MaterialPBR SetupMaterialPBR(Environment env, Color albedo, int metalness, int roughness);                                      // Set up PBR environment shader constant values
 void SetMaterialTexturePBR(MaterialPBR *mat, TypePBR type, Texture2D texture);                                                  // Set texture to PBR material
+void UnsetMaterialTexturePBR(MaterialPBR *mat, TypePBR type);                                                                   // Unset texture to PBR material and unload it from GPU
 Light CreateLight(int type, Vector3 pos, Vector3 targ, Color color, Environment env);                                           // Defines a light and get locations from environment PBR shader
 Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianceSize, int prefilterSize, int brdfSize);        // Load an environment cubemap, irradiance, prefilter and PBR scene
 
@@ -156,7 +154,7 @@ void UpdateLightsValues(Environment env, Light light);                          
 void UpdateEnvironmentValues(Environment env, Camera camera, Vector2 res);                                                      // Send to environment PBR shader camera view and resolution values
 
 void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotationAxis, float rotationAngle, Vector3 scale);    // Draw a model using physically based rendering
-void DrawSkybox(Environment environment, int mode, Camera camera);                                                              // Draw a cube skybox using environment cube map
+void DrawSkybox(Environment environment, Camera camera);                                                                        // Draw a cube skybox using environment cube map
 void RenderCube(void);                                                                                                          // Renders a 1x1 3D cube in NDC
 void RenderQuad(void);                                                                                                          // Renders a 1x1 XY quad in NDC
 
@@ -217,9 +215,6 @@ MaterialPBR SetupMaterialPBR(Environment env, Color albedo, int metalness, int r
 // Set texture to PBR material
 void SetMaterialTexturePBR(MaterialPBR *mat, TypePBR type, Texture2D texture)
 {
-    // Apply changes to material and send sampler use state to material shader
-    glUseProgram(mat->env.pbrShader.id);
-
     switch (type)
     {
         case PBR_ALBEDO:
@@ -261,36 +256,111 @@ void SetMaterialTexturePBR(MaterialPBR *mat, TypePBR type, Texture2D texture)
     }
 }
 
+// Unset texture to PBR material and unload it from GPU
+void UnsetMaterialTexturePBR(MaterialPBR *mat, TypePBR type)
+{
+    switch (type)
+    {
+        case PBR_ALBEDO:
+        {
+            if (mat->albedo.useBitmap)
+            {
+                mat->albedo.useBitmap = false;
+                UnloadTexture(mat->albedo.bitmap);
+                mat->albedo.bitmap = (Texture2D){ 0 };
+            }
+        } break;
+        case PBR_NORMALS:
+        {
+            if (mat->normals.useBitmap)
+            {
+                mat->normals.useBitmap = false;
+                UnloadTexture(mat->normals.bitmap);
+                mat->normals.bitmap = (Texture2D){ 0 };
+            }
+        } break;
+        case PBR_METALNESS:
+        {
+            if (mat->metalness.useBitmap)
+            {
+                mat->metalness.useBitmap = false;
+                UnloadTexture(mat->metalness.bitmap);
+                mat->metalness.bitmap = (Texture2D){ 0 };
+            }
+        } break;
+        case PBR_ROUGHNESS:
+        {
+            if (mat->roughness.useBitmap)
+            {
+                mat->roughness.useBitmap = false;
+                UnloadTexture(mat->roughness.bitmap);
+                mat->roughness.bitmap = (Texture2D){ 0 };
+            }
+        } break;
+        case PBR_AO:
+        {
+            if (mat->ao.useBitmap)
+            {
+                mat->ao.useBitmap = false;
+                UnloadTexture(mat->ao.bitmap);
+                mat->ao.bitmap = (Texture2D){ 0 };
+            }
+        } break;
+        case PBR_EMISSION:
+        {
+            if (mat->emission.useBitmap)
+            {
+                mat->emission.useBitmap = false;
+                UnloadTexture(mat->emission.bitmap);
+                mat->emission.bitmap = (Texture2D){ 0 };
+            }
+        } break;
+        case PBR_HEIGHT:
+        {
+            if (mat->height.useBitmap)
+            {
+                mat->height.useBitmap = false;
+                UnloadTexture(mat->height.bitmap);
+                mat->height.bitmap = (Texture2D){ 0 };
+            }
+        } break;
+        default: break;
+    }
+}
+
 // Defines a light and get locations from environment shader
 Light CreateLight(int type, Vector3 pos, Vector3 targ, Color color, Environment env)
 {
     Light light = { 0 };
 
-    light.enabled = true;
-    light.type = type;
-    light.position = pos;
-    light.target = targ;
-    light.color = color;
+    if (lightsCount < MAX_LIGHTS)
+    {
+        light.enabled = true;
+        light.type = type;
+        light.position = pos;
+        light.target = targ;
+        light.color = color;
 
-    char enabledName[32] = "lights[x].enabled\0";
-    char typeName[32] = "lights[x].type\0";
-    char posName[32] = "lights[x].position\0";
-    char targetName[32] = "lights[x].target\0";
-    char colorName[32] = "lights[x].color\0";
-    enabledName[7] = '0' + lightsCount;
-    typeName[7] = '0' + lightsCount;
-    posName[7] = '0' + lightsCount;
-    targetName[7] = '0' + lightsCount;
-    colorName[7] = '0' + lightsCount;
+        char enabledName[32] = "lights[x].enabled\0";
+        char typeName[32] = "lights[x].type\0";
+        char posName[32] = "lights[x].position\0";
+        char targetName[32] = "lights[x].target\0";
+        char colorName[32] = "lights[x].color\0";
+        enabledName[7] = '0' + lightsCount;
+        typeName[7] = '0' + lightsCount;
+        posName[7] = '0' + lightsCount;
+        targetName[7] = '0' + lightsCount;
+        colorName[7] = '0' + lightsCount;
 
-    light.enabledLoc = GetShaderLocation(env.pbrShader, enabledName);
-    light.typeLoc = GetShaderLocation(env.pbrShader, typeName);
-    light.posLoc = GetShaderLocation(env.pbrShader, posName);
-    light.targetLoc = GetShaderLocation(env.pbrShader, targetName);
-    light.colorLoc = GetShaderLocation(env.pbrShader, colorName);
+        light.enabledLoc = GetShaderLocation(env.pbrShader, enabledName);
+        light.typeLoc = GetShaderLocation(env.pbrShader, typeName);
+        light.posLoc = GetShaderLocation(env.pbrShader, posName);
+        light.targetLoc = GetShaderLocation(env.pbrShader, targetName);
+        light.colorLoc = GetShaderLocation(env.pbrShader, colorName);
 
-    UpdateLightsValues(env, light);
-    lightsCount++;
+        UpdateLightsValues(env, light);
+        lightsCount++;
+    }
 
     return light;
 }
@@ -486,18 +556,17 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     SetShaderValueMatrix(env.prefilterShader, prefilterProjectionLoc, captureProjection);
 
     glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
-    unsigned int maxMipLevels = 5;
 
-    for (unsigned int mip = 0; mip < maxMipLevels; mip++)
+    for (unsigned int mip = 0; mip < MAX_MIPMAP_LEVELS; mip++)
     {
         // Resize framebuffer according to mip-level size.
-        unsigned int mipWidth  = prefilterSize*pow(0.5, mip);
-        unsigned int mipHeight = prefilterSize*pow(0.5, mip);
+        unsigned int mipWidth  = prefilterSize*powf(0.5f, mip);
+        unsigned int mipHeight = prefilterSize*powf(0.5f, mip);
         glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
         glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
         glViewport(0, 0, mipWidth, mipHeight);
 
-        float roughness = (float)mip/(float)(maxMipLevels - 1);
+        float roughness = (float)mip/(float)(MAX_MIPMAP_LEVELS - 1);
         glUniform1f(prefilterRoughnessLoc, roughness);
 
         for (unsigned int i = 0; i < 6; ++i)
@@ -750,24 +819,15 @@ void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotati
 }
 
 // Draw a cube skybox using environment cube map
-void DrawSkybox(Environment environment, int mode, Camera camera)
+void DrawSkybox(Environment environment, Camera camera)
 {
     // Calculate view matrix for custom shaders
     Matrix view = MatrixLookAt(camera.position, camera.target, camera.up);
 
     // Send to shader view matrix and bind cubemap texture
-    glUseProgram(environment.skyShader.id);
-    glUniform1i(GetShaderLocation(environment.skyShader, "skyMode"), mode);
     SetShaderValueMatrix(environment.skyShader, environment.skyViewLoc, view);
     glActiveTexture(GL_TEXTURE0);
-
-    switch (mode)
-    {
-        case BACKGROUND_SKY: glBindTexture(GL_TEXTURE_CUBE_MAP, environment.cubemapId); break;
-        case BACKGROUND_BLURSKY: glBindTexture(GL_TEXTURE_CUBE_MAP, environment.cubemapId); break;
-        case BACKGROUND_AMBIENT: glBindTexture(GL_TEXTURE_CUBE_MAP, environment.irradianceId); break;
-        default: break;
-    }
+    glBindTexture(GL_TEXTURE_CUBE_MAP, environment.cubemapId);
 
     // Render skybox cube
     RenderCube();
