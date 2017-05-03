@@ -107,6 +107,8 @@
 #define         UI_CHECKBOX_SIZE            20
 #define         UI_BUTTON_WIDTH             120
 #define         UI_BUTTON_HEIGHT            35
+#define         UI_LIGHT_WIDTH              200
+#define         UI_LIGHT_HEIGHT             140
 #define         UI_COLOR_BACKGROUND         (Color){ 5, 26, 36, 255 }
 #define         UI_COLOR_SECONDARY          (Color){ 245, 245, 245, 255 }
 #define         UI_COLOR_PRIMARY            (Color){ 234, 83, 77, 255 }
@@ -130,8 +132,8 @@
 #define         UI_TEXT_DRAW_LIGHTS         "   Show Lights"
 #define         UI_TEXT_DRAW_GRID           "   Show Grid"
 #define         UI_TEXT_BUTTON_SS           "Screenshot (F12)"
-#define         UI_TEXT_BUTTON_HELP         "Help"
-#define         UI_TEXT_BUTTON_RESET        "Reset Scene"
+#define         UI_TEXT_BUTTON_HELP         "Help (H)"
+#define         UI_TEXT_BUTTON_RESET        "Reset Scene (R)"
 #define         UI_TEXT_BUTTON_CLOSE_HELP   "Close Help"
 #define         UI_TEXT_CONTROLS            "Controls"
 #define         UI_TEXT_CREDITS             "Credits"
@@ -145,6 +147,10 @@
 #define         UI_TEXT_CREDITS_WEB         "Visit www.victorfisac.com for more information about the tool."
 #define         UI_TEXT_DELETE              "CLICK TO DELETE TEXTURE"
 #define         UI_TEXT_DISPLAY             "Use SPACE BAR to display/hide interface"
+#define         UI_TEXT_LIGHT_ENABLED       "   Enabled"
+#define         UI_TEXT_LIGHT_R             "R"
+#define         UI_TEXT_LIGHT_G             "G"
+#define         UI_TEXT_LIGHT_B             "B"
 
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
@@ -233,6 +239,7 @@ RenderScale renderScale = RENDER_SCALE_2X;
 CameraType cameraType = CAMERA_TYPE_FREE;
 CameraType lastCameraType = CAMERA_TYPE_FREE;
 Texture2D textures[7] = { 0 };
+int selectedLight = -1;
 bool resetScene = false;
 bool drawGrid = false;
 bool drawWire = false;
@@ -254,10 +261,11 @@ Camera camera = { 0 };
 //----------------------------------------------------------------------------------
 // Function Declarations
 //----------------------------------------------------------------------------------
-void InitInterface(void);                                                                      // Initialize interface texts lengths
-void DrawLight(Light light, bool over);                                                        // Draw a light gizmo based on light attributes
-void DrawInterface(Vector2 size, int scrolling);                                               // Draw interface based on current window dimensions
-void DrawTextureMap(int id, Texture2D texture, Vector2 position);                              // Draw interface PBR texture or alternative text
+void InitInterface(void);                                                                       // Initialize interface texts lengths
+void DrawLight(Light light, bool over);                                                         // Draw a light gizmo based on light attributes
+void DrawInterface(Vector2 size, int scrolling);                                                // Draw interface based on current window dimensions
+void DrawLightInterface(Light *light);                                                          // Draw specific light settings interface
+void DrawTextureMap(int id, Texture2D texture, Vector2 position);                               // Draw interface PBR texture or alternative text
 
 //----------------------------------------------------------------------------------
 // Main program
@@ -267,7 +275,7 @@ int main()
     // Initialization
     //------------------------------------------------------------------------------
     // Enable V-Sync and window resizable state
-    SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "rPBR - Physically based rendering 3D model viewer");
     InitInterface();
 
@@ -392,7 +400,7 @@ int main()
         }
 
         // Check if scene needs to be reset
-        if (resetScene)
+        if (resetScene || IsKeyPressed(KEY_R))
         {
             // Reset camera values and return to free mode
             camera.position = (Vector3){ 3.5f, 3.0f, 3.5f };
@@ -409,6 +417,9 @@ int main()
                 float angle = lightAngle + 90*i;
                 lights[i].position.x = LIGHT_DISTANCE*cosf(angle*DEG2RAD);
                 lights[i].position.z = LIGHT_DISTANCE*sinf(angle*DEG2RAD);
+
+                // Send lights values to environment PBR shader
+                UpdateLightValues(environment, lights[i]);
             }
 
             // Reset scene reset state
@@ -491,7 +502,24 @@ int main()
         }
 
         // Check for display UI switch states
-        if (IsKeyPressed(KEY_SPACE)) drawUI = !drawUI;
+        if (IsKeyPressed(KEY_SPACE))
+        {
+            // Update current draw interface state
+            drawUI = !drawUI;
+
+            // Reset current selected light id
+            if (selectedLight != -1) selectedLight = -1;
+        }
+
+        // Check for display help UI shortcut input
+        if (IsKeyPressed(KEY_H))
+        {
+            // Update current draw help interface state
+            drawHelp = true;
+
+            // Reset current selected light
+            if (selectedLight != -1) selectedLight = -1;
+        }
 
         // Check for render mode shortcut inputs
         if (IsKeyPressed(KEY_F1)) renderMode = DEFAULT;
@@ -524,6 +552,9 @@ int main()
                 float angle = lightAngle + 90*i;
                 lights[i].position.x = LIGHT_DISTANCE*cosf(angle*DEG2RAD);
                 lights[i].position.z = LIGHT_DISTANCE*sinf(angle*DEG2RAD);
+
+                // Send lights values to environment PBR shader
+                UpdateLightValues(environment, lights[i]);
             }
         }
         else mousePosX = GetMouseX();
@@ -566,18 +597,29 @@ int main()
         // Fix camera move state if camera mode is orbital and mouse middle button is not down
         if (!canMoveCamera && ((!IsMouseButtonDown(MOUSE_MIDDLE_BUTTON) && (cameraType == CAMERA_ORBITAL)))) canMoveCamera = true;
 
-        // Update lights values
-        for (int i = 0; i < totalLights; i++)
+        // Check for light select input
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
         {
-            // Check for light enabled input
-            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+            // Store last selected light value
+            int lastSelected = selectedLight;
+
+            // Check mouse-light collision for all lights
+            for (int i = 0; i < totalLights; i++)
             {
                 Ray ray = GetMouseRay(GetMousePosition(), camera);
-                if (CheckCollisionRaySphere(ray, lights[i].position, LIGHT_RADIUS)) lights[i].enabled = !lights[i].enabled;
+                if (CheckCollisionRaySphere(ray, lights[i].position, LIGHT_RADIUS)) selectedLight = i;
             }
 
-            // Send lights values to environment PBR shader
-            UpdateLightsValues(environment, lights[i]);
+            bool currentWindow = false;
+            if (selectedLight != -1)
+            {
+                Vector2 screenPos = GetWorldToScreen(lights[selectedLight].position, camera);
+                if (CheckCollisionPointRec(GetMousePosition(), (Rectangle){ screenPos.x + UI_MENU_PADDING/2, screenPos.y + 
+                                           UI_MENU_PADDING/2, UI_LIGHT_WIDTH, UI_LIGHT_HEIGHT })) currentWindow = true;
+            }
+
+            // Deselect current light if mouse position is not over any light
+            if ((selectedLight == lastSelected) && !currentWindow) selectedLight = -1;
         }
 
         // Update camera values and send them to all required shaders
@@ -690,7 +732,14 @@ int main()
                 if (GuiButton((Rectangle){ GetScreenWidth()/2 - UI_BUTTON_WIDTH/2, GetScreenHeight() - UI_BUTTON_HEIGHT - UI_MENU_PADDING*5, 
                     UI_BUTTON_WIDTH, UI_BUTTON_HEIGHT }, UI_TEXT_BUTTON_CLOSE_HELP)) drawHelp = false;
             }
-            else if (drawUI) DrawInterface((Vector2){ GetScreenWidth(), GetScreenHeight() }, scrolling);
+            else if (drawUI)
+            {
+                // Draw light settings interface if any light is selected
+                if (selectedLight != -1) DrawLightInterface(&lights[selectedLight]);
+
+                // Draw global interface to manage textures, material properties and render settings
+                DrawInterface((Vector2){ GetScreenWidth(), GetScreenHeight() }, scrolling);
+            }
 
         EndDrawing();
         //--------------------------------------------------------------------------
@@ -902,7 +951,11 @@ void DrawInterface(Vector2 size, int scrolling)
 
     // Draw viewport interface help button
     if (GuiButton((Rectangle){ UI_MENU_WIDTH + UI_MENU_PADDING, GetScreenHeight() - UI_MENU_PADDING - UI_BUTTON_HEIGHT, 
-                   UI_BUTTON_WIDTH, UI_BUTTON_HEIGHT }, UI_TEXT_BUTTON_HELP)) drawHelp = true;
+                   UI_BUTTON_WIDTH, UI_BUTTON_HEIGHT }, UI_TEXT_BUTTON_HELP))
+    {
+        drawHelp = true;
+        if (selectedLight != -1) selectedLight = -1;
+    }
 
     // Draw viewport interface screenshot button
     padding = UI_MENU_WIDTH + UI_MENU_PADDING + UI_BUTTON_WIDTH + UI_MENU_PADDING;
@@ -920,6 +973,41 @@ void DrawInterface(Vector2 size, int scrolling)
 
     // Draw viewport interface display/hide help message
     DrawText(UI_TEXT_DISPLAY, GetScreenWidth() - UI_MENU_WIDTH - displayLength - 10, GetScreenHeight() - UI_TEXT_SIZE_H3 - 5, UI_TEXT_SIZE_H3, UI_COLOR_BACKGROUND);
+}
+
+// Draw specific light settings interface
+void DrawLightInterface(Light *light)
+{
+    Vector2 screenPos = GetWorldToScreen(light->position, camera);
+    Vector2 padding = { screenPos.x + UI_MENU_PADDING/2, screenPos.y + UI_MENU_PADDING/2 };
+
+    // Draw interface background
+    DrawRectangle(padding.x, padding.y, UI_LIGHT_WIDTH, UI_LIGHT_HEIGHT, UI_COLOR_PRIMARY);
+    DrawRectangle(padding.x + 3, padding.y + 3, UI_LIGHT_WIDTH - 6, UI_LIGHT_HEIGHT - 6, UI_COLOR_BACKGROUND);
+    padding.x += UI_MENU_PADDING;
+    padding.y += UI_MENU_PADDING;
+    
+    // Draw light enabled state checkbox
+    light->enabled = GuiCheckBox((Rectangle){ padding.x, padding.y, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, UI_TEXT_LIGHT_ENABLED, light->enabled);
+    padding.y += UI_MENU_PADDING*2;
+
+    // Draw light color R channel slider
+    light->color.r = (int)GuiSlider((Rectangle){ padding.x + UI_MENU_PADDING*1.5f, padding.y, UI_LIGHT_WIDTH*0.75f, UI_SLIDER_HEIGHT }, light->color.r, 0, 255);
+    DrawText(UI_TEXT_LIGHT_R, padding.x, padding.y + UI_TEXT_SIZE_H3/2, UI_TEXT_SIZE_H3, UI_COLOR_SECONDARY);
+    padding.y += UI_MENU_PADDING*2;
+
+    // Draw light color G channel slider
+    light->color.g = (int)GuiSlider((Rectangle){ padding.x + UI_MENU_PADDING*1.5f, padding.y, UI_LIGHT_WIDTH*0.75f, UI_SLIDER_HEIGHT }, light->color.g, 0, 255);
+    DrawText(UI_TEXT_LIGHT_G, padding.x, padding.y + UI_TEXT_SIZE_H3/2, UI_TEXT_SIZE_H3, UI_COLOR_SECONDARY);
+    padding.y += UI_MENU_PADDING*2;
+
+    // Draw light color B channel slider
+    light->color.b = (int)GuiSlider((Rectangle){ padding.x + UI_MENU_PADDING*1.5f, padding.y, UI_LIGHT_WIDTH*0.75f, UI_SLIDER_HEIGHT }, light->color.b, 0, 255);
+    DrawText(UI_TEXT_LIGHT_B, padding.x, padding.y + UI_TEXT_SIZE_H3/2, UI_TEXT_SIZE_H3, UI_COLOR_SECONDARY);
+    padding.y += UI_MENU_PADDING*2;
+
+    // Send lights values to environment PBR shader
+    UpdateLightValues(environment, *light);
 }
 
 // Draw interface PBR texture or alternative text

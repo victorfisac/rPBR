@@ -150,7 +150,7 @@ Light CreateLight(int type, Vector3 pos, Vector3 targ, Color color, Environment 
 Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianceSize, int prefilterSize, int brdfSize);        // Load an environment cubemap, irradiance, prefilter and PBR scene
 
 int GetLightsCount(void);                                                                                                       // Get the current amount of created lights
-void UpdateLightsValues(Environment env, Light light);                                                                          // Send to environment PBR shader lights values
+void UpdateLightValues(Environment env, Light light);                                                                           // Send to environment PBR shader light values
 void UpdateEnvironmentValues(Environment env, Camera camera, Vector2 res);                                                      // Send to environment PBR shader camera view and resolution values
 
 void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotationAxis, float rotationAngle, Vector3 scale);    // Draw a model using physically based rendering
@@ -358,7 +358,7 @@ Light CreateLight(int type, Vector3 pos, Vector3 targ, Color color, Environment 
         light.targetLoc = GetShaderLocation(env.pbrShader, targetName);
         light.colorLoc = GetShaderLocation(env.pbrShader, colorName);
 
-        UpdateLightsValues(env, light);
+        UpdateLightValues(env, light);
         lightsCount++;
     }
 
@@ -625,8 +625,8 @@ int GetLightsCount(void)
     return lightsCount;
 }
 
-// Send to environment PBR shader lights values
-void UpdateLightsValues(Environment env, Light light)
+// Send to environment PBR shader light values
+void UpdateLightValues(Environment env, Light light)
 {
     // Use environment PBR shader to begin sending values
     glUseProgram(env.pbrShader.id);
