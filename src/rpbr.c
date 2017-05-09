@@ -157,7 +157,6 @@
 //----------------------------------------------------------------------------------
 typedef enum { DEFAULT, ALBEDO, NORMALS, METALNESS, ROUGHNESS, AMBIENT_OCCLUSION, EMISSION, LIGHTING, FRESNEL, IRRADIANCE, REFLECTIVITY } RenderMode;
 typedef enum { RENDER_SCALE_0_5X, RENDER_SCALE_1X, RENDER_SCALE_2X, RENDER_SCALE_4X, RENDER_SCALE_8X } RenderScale;
-typedef enum { CAMERA_TYPE_FREE, CAMERA_TYPE_ORBITAL } CameraType;
 
 //----------------------------------------------------------------------------------
 // Global Variables Definition
@@ -236,8 +235,8 @@ const float renderScales[MAX_RENDER_SCALES] = {                         // Avail
 // Interface settings values
 RenderMode renderMode = DEFAULT;
 RenderScale renderScale = RENDER_SCALE_2X;
-CameraType cameraType = CAMERA_TYPE_FREE;
-CameraType lastCameraType = CAMERA_TYPE_FREE;
+CameraMode cameraType = CAMERA_FREE;
+CameraMode lastCameraType = CAMERA_FREE;
 Texture2D textures[7] = { 0 };
 int selectedLight = -1;
 bool resetScene = false;
@@ -301,7 +300,7 @@ int main()
     camera.target = (Vector3){ 0.0f, 0.5f, 0.0f };
     camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
     camera.fovy = CAMERA_FOV;
-    SetCameraMode(camera, (((cameraType == CAMERA_TYPE_FREE) ? CAMERA_FREE : CAMERA_ORBITAL)));
+    SetCameraMode(camera, cameraType);
 
     // Define environment attributes
     environment = LoadEnvironment(PATH_TEXTURES_HDR, CUBEMAP_SIZE, IRRADIANCE_SIZE, PREFILTERED_SIZE, BRDF_SIZE);
@@ -395,7 +394,7 @@ int main()
             camera.target = (Vector3){ 0.0f, 0.5f, 0.0f };
             camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
             camera.fovy = CAMERA_FOV;
-            SetCameraMode(camera, (((cameraType == CAMERA_TYPE_FREE) ? CAMERA_FREE : CAMERA_ORBITAL)));
+            SetCameraMode(camera, cameraType);
             lastCameraType = cameraType;
         }
 
@@ -407,7 +406,7 @@ int main()
             camera.target = (Vector3){ 0.0f, 0.5f, 0.0f };
             camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
             camera.fovy = CAMERA_FOV;
-            cameraType = CAMERA_TYPE_FREE;
+            cameraType = CAMERA_FREE;
             SetCameraMode(camera, CAMERA_FREE);
 
             // Reset current light angle and lights positions
