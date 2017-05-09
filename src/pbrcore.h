@@ -91,16 +91,14 @@ typedef struct {
 } Light;
 
 typedef struct Environment {
+    Shader pbrShader;
+    Shader skyShader;
+    
     unsigned int cubemapId;
     unsigned int irradianceId;
     unsigned int prefilterId;
     unsigned int brdfId;
-    Shader pbrShader;
-    Shader cubeShader;
-    Shader skyShader;
-    Shader irradianceShader;
-    Shader prefilterShader;
-    Shader brdfShader;
+    
     int pbrViewLoc;
     int skyViewLoc;
     int skyResolutionLoc;
@@ -369,15 +367,17 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
 
     // Load environment required shaders
     env.pbrShader = LoadShader(PATH_PBR_VS, PATH_PBR_FS);
-    env.cubeShader = LoadShader(PATH_CUBE_VS, PATH_CUBE_FS);
+    
+    Shader cubeShader = LoadShader(PATH_CUBE_VS, PATH_CUBE_FS);
+    Shader irradianceShader = LoadShader(PATH_SKYBOX_VS, PATH_IRRADIANCE_FS);
+    Shader prefilterShader = LoadShader(PATH_SKYBOX_VS, PATH_PREFILTER_FS);
+    Shader brdfShader = LoadShader(PATH_BRDF_VS, PATH_BRDF_FS);
+    
     env.skyShader = LoadShader(PATH_SKYBOX_VS, PATH_SKYBOX_FS);
-    env.irradianceShader = LoadShader(PATH_SKYBOX_VS, PATH_IRRADIANCE_FS);
-    env.prefilterShader = LoadShader(PATH_SKYBOX_VS, PATH_PREFILTER_FS);
-    env.brdfShader = LoadShader(PATH_BRDF_VS, PATH_BRDF_FS);
 
     // Get cubemap shader locations
-    int cubeProjectionLoc = GetShaderLocation(env.cubeShader, "projection");
-    int cubeViewLoc = GetShaderLocation(env.cubeShader, "view");
+    int cubeProjectionLoc = GetShaderLocation(cubeShader, "projection");
+    int cubeViewLoc = GetShaderLocation(cubeShader, "view");
 
     // Get skybox shader locations
     int skyProjectionLoc = GetShaderLocation(env.skyShader, "projection");
@@ -385,13 +385,13 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     env.skyResolutionLoc = GetShaderLocation(env.skyShader, "resolution");
 
     // Get irradiance shader locations
-    int irradianceProjectionLoc = GetShaderLocation(env.irradianceShader, "projection");
-    int irradianceViewLoc = GetShaderLocation(env.irradianceShader, "view");
+    int irradianceProjectionLoc = GetShaderLocation(irradianceShader, "projection");
+    int irradianceViewLoc = GetShaderLocation(irradianceShader, "view");
 
     // Get prefilter shader locations
-    int prefilterProjectionLoc = GetShaderLocation(env.prefilterShader, "projection");
-    int prefilterViewLoc = GetShaderLocation(env.prefilterShader, "view");
-    int prefilterRoughnessLoc = GetShaderLocation(env.prefilterShader, "roughness");
+    int prefilterProjectionLoc = GetShaderLocation(prefilterShader, "projection");
+    int prefilterViewLoc = GetShaderLocation(prefilterShader, "view");
+    int prefilterRoughnessLoc = GetShaderLocation(prefilterShader, "roughness");
 
     // Set up environment shader texture units
     SetShaderValuei(env.pbrShader, GetShaderLocation(env.pbrShader, "irradianceMap"), (int[1]){ 0 }, 1);
@@ -399,13 +399,13 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     SetShaderValuei(env.pbrShader, GetShaderLocation(env.pbrShader, "brdfLUT"), (int[1]){ 2 }, 1);
 
     // Set up cubemap shader constant values
-    SetShaderValuei(env.cubeShader, GetShaderLocation(env.cubeShader, "equirectangularMap"), (int[1]){ 0 }, 1);
+    SetShaderValuei(cubeShader, GetShaderLocation(cubeShader, "equirectangularMap"), (int[1]){ 0 }, 1);
 
     // Set up irradiance shader constant values
-    SetShaderValuei(env.irradianceShader, GetShaderLocation(env.irradianceShader, "environmentMap"), (int[1]){ 0 }, 1);
+    SetShaderValuei(irradianceShader, GetShaderLocation(irradianceShader, "environmentMap"), (int[1]){ 0 }, 1);
 
     // Set up prefilter shader constant values
-    SetShaderValuei(env.prefilterShader, GetShaderLocation(env.prefilterShader, "environmentMap"), (int[1]){ 0 }, 1);
+    SetShaderValuei(prefilterShader, GetShaderLocation(prefilterShader, "environmentMap"), (int[1]){ 0 }, 1);
 
     // Set up skybox shader constant values
     SetShaderValuei(env.skyShader, GetShaderLocation(env.skyShader, "environmentMap"), (int[1]){ 0 }, 1);
@@ -452,10 +452,10 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     };
 
     // Convert HDR equirectangular environment map to cubemap equivalent
-    glUseProgram(env.cubeShader.id);
+    glUseProgram(cubeShader.id);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, skyTex.id);
-    SetShaderValueMatrix(env.cubeShader, cubeProjectionLoc, captureProjection);
+    SetShaderValueMatrix(cubeShader, cubeProjectionLoc, captureProjection);
 
     // Note: don't forget to configure the viewport to the capture dimensions
     glViewport(0, 0, cubemapSize, cubemapSize);
@@ -463,7 +463,7 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
 
     for (unsigned int i = 0; i < 6; i++)
     {
-        SetShaderValueMatrix(env.cubeShader, cubeViewLoc, captureViews[i]);
+        SetShaderValueMatrix(cubeShader, cubeViewLoc, captureViews[i]);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, env.cubemapId, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         RenderCube();
@@ -487,10 +487,10 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, irradianceSize, irradianceSize);
 
     // Solve diffuse integral by convolution to create an irradiance cubemap
-    glUseProgram(env.irradianceShader.id);
+    glUseProgram(irradianceShader.id);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, env.cubemapId);
-    SetShaderValueMatrix(env.irradianceShader, irradianceProjectionLoc, captureProjection);
+    SetShaderValueMatrix(irradianceShader, irradianceProjectionLoc, captureProjection);
 
     // Note: don't forget to configure the viewport to the capture dimensions
     glViewport(0, 0, irradianceSize, irradianceSize);
@@ -498,7 +498,7 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
 
     for (unsigned int i = 0; i < 6; i++)
     {
-        SetShaderValueMatrix(env.irradianceShader, irradianceViewLoc, captureViews[i]);
+        SetShaderValueMatrix(irradianceShader, irradianceViewLoc, captureViews[i]);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, env.irradianceId, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         RenderCube();
@@ -521,10 +521,10 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 
     // Prefilter HDR and store data into mipmap levels
-    glUseProgram(env.prefilterShader.id);
+    glUseProgram(prefilterShader.id);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, env.cubemapId);
-    SetShaderValueMatrix(env.prefilterShader, prefilterProjectionLoc, captureProjection);
+    SetShaderValueMatrix(prefilterShader, prefilterProjectionLoc, captureProjection);
 
     glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
 
@@ -542,7 +542,7 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
 
         for (unsigned int i = 0; i < 6; ++i)
         {
-            SetShaderValueMatrix(env.prefilterShader, prefilterViewLoc, captureViews[i]);
+            SetShaderValueMatrix(prefilterShader, prefilterViewLoc, captureViews[i]);
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, env.prefilterId, mip);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             RenderCube();
@@ -568,7 +568,7 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, env.brdfId, 0);
 
     glViewport(0, 0, brdfSize, brdfSize);
-    glUseProgram(env.brdfShader.id);
+    glUseProgram(brdfShader.id);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     RenderQuad();
 
@@ -578,14 +578,19 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     // Then before rendering, configure the viewport to the actual screen dimensions
     Matrix defaultProjection = MatrixPerspective(60.0, (double)GetScreenWidth()/(double)GetScreenHeight(), 0.01, 1000.0);
     MatrixTranspose(&defaultProjection);
-    SetShaderValueMatrix(env.cubeShader, cubeProjectionLoc, defaultProjection);
+    SetShaderValueMatrix(cubeShader, cubeProjectionLoc, defaultProjection);
     SetShaderValueMatrix(env.skyShader, skyProjectionLoc, defaultProjection);
-    SetShaderValueMatrix(env.irradianceShader, irradianceProjectionLoc, defaultProjection);
-    SetShaderValueMatrix(env.prefilterShader, prefilterProjectionLoc, defaultProjection);
+    SetShaderValueMatrix(irradianceShader, irradianceProjectionLoc, defaultProjection);
+    SetShaderValueMatrix(prefilterShader, prefilterProjectionLoc, defaultProjection);
     env.pbrViewLoc = GetShaderLocation(env.pbrShader, "viewPos");
 
     // Reset viewport dimensions to default
     glViewport(0, 0, GetScreenWidth(), GetScreenHeight());
+    
+    UnloadShader(cubeShader);
+    UnloadShader(irradianceShader);
+    UnloadShader(prefilterShader);
+    UnloadShader(brdfShader);
 
     return env;
 }
@@ -793,12 +798,15 @@ void DrawSkybox(Environment env, Camera camera)
     Matrix view = MatrixLookAt(camera.position, camera.target, camera.up);
 
     // Send to shader view matrix and bind cubemap texture
+    // NOTE: Setting shader value also activates shader program but
+    // that activation could change in a future... active shader manually!
     SetShaderValueMatrix(env.skyShader, env.skyViewLoc, view);
     
+    // Skybox shader diffuse texture: cubemapId
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, env.cubemapId);
 
-    // Render skybox cube
+    // Render cube using skybox shader
     RenderCube();
 }
 
@@ -930,11 +938,7 @@ void UnloadEnvironment(Environment env)
 {
     // Unload used environment shaders
     UnloadShader(env.pbrShader);
-    UnloadShader(env.cubeShader);
     UnloadShader(env.skyShader);
-    UnloadShader(env.irradianceShader);
-    UnloadShader(env.prefilterShader);
-    UnloadShader(env.brdfShader);
 
     // Unload dynamic textures created in environment initialization
     glDeleteTextures(1, &env.cubemapId);
