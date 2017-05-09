@@ -50,8 +50,6 @@
 //----------------------------------------------------------------------------------
 #include <math.h>                           // Required for: powf()
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "external/stb_image.h"             // Required for image loading
 #include "external/glad.h"                  // Required for OpenGL API
 
 //----------------------------------------------------------------------------------
@@ -200,14 +198,13 @@ MaterialPBR SetupMaterialPBR(Environment env, Color albedo, int metalness, int r
     mat.env = env;
 
     // Set up PBR shader material texture units
-    glUseProgram(mat.env.pbrShader.id);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "albedo.sampler"), 3);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "normals.sampler"), 4);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "metalness.sampler"), 5);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "roughness.sampler"), 6);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "ao.sampler"), 7);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "emission.sampler"), 8);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "height.sampler"), 9);
+    SetShaderValuei(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "albedo.sampler"), (int[1]){ 3 }, 1);
+    SetShaderValuei(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "normals.sampler"), (int[1]){ 4 }, 1);
+    SetShaderValuei(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "metalness.sampler"), (int[1]){ 5 }, 1);
+    SetShaderValuei(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "roughness.sampler"), (int[1]){ 6 }, 1);
+    SetShaderValuei(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "ao.sampler"), (int[1]){ 7 }, 1);
+    SetShaderValuei(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "emission.sampler"), (int[1]){ 8 }, 1);
+    SetShaderValuei(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "height.sampler"), (int[1]){ 9 }, 1);
 
     return mat;
 }
@@ -379,48 +376,39 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     env.brdfShader = LoadShader(PATH_BRDF_VS, PATH_BRDF_FS);
 
     // Get cubemap shader locations
-    int equirectangularMapLoc = GetShaderLocation(env.cubeShader, "equirectangularMap");
     int cubeProjectionLoc = GetShaderLocation(env.cubeShader, "projection");
     int cubeViewLoc = GetShaderLocation(env.cubeShader, "view");
 
     // Get skybox shader locations
-    int skyMapLoc = GetShaderLocation(env.skyShader, "environmentMap");
     int skyProjectionLoc = GetShaderLocation(env.skyShader, "projection");
     env.skyViewLoc = GetShaderLocation(env.skyShader, "view");
     env.skyResolutionLoc = GetShaderLocation(env.skyShader, "resolution");
 
     // Get irradiance shader locations
-    int irradianceMapLoc = GetShaderLocation(env.irradianceShader, "environmentMap");
     int irradianceProjectionLoc = GetShaderLocation(env.irradianceShader, "projection");
     int irradianceViewLoc = GetShaderLocation(env.irradianceShader, "view");
 
     // Get prefilter shader locations
-    int prefilterMapLoc = GetShaderLocation(env.prefilterShader, "environmentMap");
     int prefilterProjectionLoc = GetShaderLocation(env.prefilterShader, "projection");
     int prefilterViewLoc = GetShaderLocation(env.prefilterShader, "view");
     int prefilterRoughnessLoc = GetShaderLocation(env.prefilterShader, "roughness");
 
     // Set up environment shader texture units
-    glUseProgram(env.pbrShader.id);
-    glUniform1i(GetShaderLocation(env.pbrShader, "irradianceMap"), 0);
-    glUniform1i(GetShaderLocation(env.pbrShader, "prefilterMap"), 1);
-    glUniform1i(GetShaderLocation(env.pbrShader, "brdfLUT"), 2);
+    SetShaderValuei(env.pbrShader, GetShaderLocation(env.pbrShader, "irradianceMap"), (int[1]){ 0 }, 1);
+    SetShaderValuei(env.pbrShader, GetShaderLocation(env.pbrShader, "prefilterMap"), (int[1]){ 1 }, 1);
+    SetShaderValuei(env.pbrShader, GetShaderLocation(env.pbrShader, "brdfLUT"), (int[1]){ 2 }, 1);
 
     // Set up cubemap shader constant values
-    glUseProgram(env.cubeShader.id);
-    glUniform1i(equirectangularMapLoc, 0);
+    SetShaderValuei(env.cubeShader, GetShaderLocation(env.cubeShader, "equirectangularMap"), (int[1]){ 0 }, 1);
 
     // Set up irradiance shader constant values
-    glUseProgram(env.irradianceShader.id);
-    glUniform1i(irradianceMapLoc, 0);
+    SetShaderValuei(env.irradianceShader, GetShaderLocation(env.irradianceShader, "environmentMap"), (int[1]){ 0 }, 1);
 
     // Set up prefilter shader constant values
-    glUseProgram(env.prefilterShader.id);
-    glUniform1i(prefilterMapLoc, 0);
+    SetShaderValuei(env.prefilterShader, GetShaderLocation(env.prefilterShader, "environmentMap"), (int[1]){ 0 }, 1);
 
     // Set up skybox shader constant values
-    glUseProgram(env.skyShader.id);
-    glUniform1i(skyMapLoc, 0);
+    SetShaderValuei(env.skyShader, GetShaderLocation(env.skyShader, "environmentMap"), (int[1]){ 0 }, 1);
 
     // Set up depth face culling and cube map seamless
     glDepthFunc(GL_LEQUAL);
@@ -429,24 +417,7 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     glLineWidth(2);
 
     // Load HDR environment texture
-    unsigned int skyTex = 0;
-    stbi_set_flip_vertically_on_load(true);
-    int width = 0, height = 0, nrComponents = 0;
-    float *data = stbi_loadf(filename, &width, &height, &nrComponents, 0);
-
-    if (data)
-    {
-        glGenTextures(1, &skyTex);
-        glBindTexture(GL_TEXTURE_2D, skyTex);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, data);
-
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-        stbi_image_free(data);
-    }
+    Texture2D skyTex = LoadTexture(filename);
 
     // Set up framebuffer for skybox
     unsigned int captureFBO, captureRBO;
@@ -483,7 +454,7 @@ Environment LoadEnvironment(const char *filename, int cubemapSize, int irradianc
     // Convert HDR equirectangular environment map to cubemap equivalent
     glUseProgram(env.cubeShader.id);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, skyTex);
+    glBindTexture(GL_TEXTURE_2D, skyTex.id);
     SetShaderValueMatrix(env.cubeShader, cubeProjectionLoc, captureProjection);
 
     // Note: don't forget to configure the viewport to the capture dimensions
@@ -628,12 +599,9 @@ int GetLightsCount(void)
 // Send to environment PBR shader light values
 void UpdateLightValues(Environment env, Light light)
 {
-    // Use environment PBR shader to begin sending values
-    glUseProgram(env.pbrShader.id);
-
     // Send to shader light enabled state and type
-    glUniform1i(light.enabledLoc, light.enabled);
-    glUniform1i(light.typeLoc, light.type);
+    SetShaderValuei(env.pbrShader, light.enabledLoc, (int[1]){ light.enabled }, 1);
+    SetShaderValuei(env.pbrShader, light.typeLoc, (int[1]){ light.type }, 1);
 
     // Send to shader light position values
     float position[3] = { light.position.x, light.position.y, light.position.z };
@@ -683,14 +651,13 @@ void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotati
     SetShaderValue(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "height.color"), shaderHeight, 3);
 
     // Send sampler use state to PBR shader
-    glUseProgram(mat.env.pbrShader.id);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "albedo.useSampler"), mat.albedo.useBitmap);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "normals.useSampler"), mat.normals.useBitmap);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "metalness.useSampler"), mat.metalness.useBitmap);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "roughness.useSampler"), mat.roughness.useBitmap);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "ao.useSampler"), mat.ao.useBitmap);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "emission.useSampler"), mat.emission.useBitmap);
-    glUniform1i(GetShaderLocation(mat.env.pbrShader, "height.useSampler"), mat.height.useBitmap);
+    SetShaderValuei(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "albedo.useSampler"), (int[1]){ mat.albedo.useBitmap }, 1);
+    SetShaderValuei(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "normals.useSampler"), (int[1]){ mat.normals.useBitmap }, 1);
+    SetShaderValuei(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "metalness.useSampler"), (int[1]){ mat.metalness.useBitmap }, 1);
+    SetShaderValuei(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "roughness.useSampler"), (int[1]){ mat.roughness.useBitmap }, 1);
+    SetShaderValuei(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "ao.useSampler"), (int[1]){ mat.ao.useBitmap }, 1);
+    SetShaderValuei(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "emission.useSampler"), (int[1]){ mat.emission.useBitmap }, 1);
+    SetShaderValuei(mat.env.pbrShader, GetShaderLocation(mat.env.pbrShader, "height.useSampler"), (int[1]){ mat.height.useBitmap }, 1);
 
     // Calculate and send to shader model matrix
     Matrix matScale = MatrixScale(scale.x, scale.y, scale.z);
@@ -819,15 +786,17 @@ void DrawModelPBR(Model model, MaterialPBR mat, Vector3 position, Vector3 rotati
 }
 
 // Draw a cube skybox using environment cube map
-void DrawSkybox(Environment environment, Camera camera)
+//void DrawSkybox(Shader sky, Texture2D cubemap, Camera camera)
+void DrawSkybox(Environment env, Camera camera)
 {
     // Calculate view matrix for custom shaders
     Matrix view = MatrixLookAt(camera.position, camera.target, camera.up);
 
     // Send to shader view matrix and bind cubemap texture
-    SetShaderValueMatrix(environment.skyShader, environment.skyViewLoc, view);
+    SetShaderValueMatrix(env.skyShader, env.skyViewLoc, view);
+    
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, environment.cubemapId);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, env.cubemapId);
 
     // Render skybox cube
     RenderCube();
