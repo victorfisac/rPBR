@@ -81,6 +81,7 @@
 #define         MAX_CAMERA_TYPES            2                   // Max number of camera modes to switch (CameraType type)
 #define         MAX_SUPPORTED_EXTENSIONS    5                   // Max number of supported image file extensions (JPG, PNG, BMP, TGA and PSD)
 #define         MAX_SCROLL                  850                 // Max mouse wheel for interface scrolling
+#define         MAX_TEXTS                   16                  // Max number of text length in array
 
 #define         SCROLL_SPEED                50                  // Interface scrolling speed
 #define         CAMERA_FOV                  60.0f               // Camera global field of view
@@ -122,7 +123,6 @@
 #define         UI_TEXT_RENDER_SCALE        "Render Scale"
 #define         UI_TEXT_RENDER_MODE         "Render Mode"
 #define         UI_TEXT_RENDER_EFFECTS      "Screen Effects"
-#define         UI_TEXT_CAMERA_MODE         "Camera Mode"
 #define         UI_TEXT_EFFECTS_TITLE       "Screen Effects"
 #define         UI_TEXT_EFFECTS_FXAA        "   Antialiasing"
 #define         UI_TEXT_EFFECTS_BLOOM       "   Bloom"
@@ -157,32 +157,31 @@
 //----------------------------------------------------------------------------------
 typedef enum { DEFAULT, ALBEDO, NORMALS, METALNESS, ROUGHNESS, AMBIENT_OCCLUSION, EMISSION, LIGHTING, FRESNEL, IRRADIANCE, REFLECTIVITY } RenderMode;
 typedef enum { RENDER_SCALE_0_5X, RENDER_SCALE_1X, RENDER_SCALE_2X, RENDER_SCALE_4X, RENDER_SCALE_8X } RenderScale;
+typedef enum { CAMERA_TYPE_FREE, CAMERA_TYPE_ORBITAL } CameraType;
+typedef enum {
+    LENGTH_TEXTURES_TITLE,
+    LENGTH_MATERIAL_TITLE,
+    LENGTH_RENDER_TITLE,
+    LENGTH_RENDER_SCALE,
+    LENGTH_RENDER_MODE,
+    LENGTH_RENDER_EFFECTS,
+    LENGTH_EFFECTS_TITLE,
+    LENGTH_CONTROLS,
+    LENGTH_TITLE,
+    LENGTH_CREDITS,
+    LENGTH_CREDITS_VICTOR,
+    LENGTH_CREDITS_RAMON,
+    LENGTH_CREDITS_WEB,
+    LENGTH_DRAG,
+    LENGTH_DELETE,
+    LENGTH_DISPLAY
+} LengthType;
 
 //----------------------------------------------------------------------------------
 // Global Variables Definition
 //----------------------------------------------------------------------------------
-int texTitleLength = 0;                                                 // Interface textures menu title length
-int matTitleLength = 0;                                                 // Interface material menu title length
-int renderTitleLength = 0;                                              // Interface render settings title length
-int renderScaleLength = 0;                                              // Interface render scale title length
-int renderModeLength = 0;                                               // Interface render mode title length
-int renderEffectsLength = 0;                                            // Interface screen effects title length
-int cameraModeLength = 0;                                               // Interface camera mode title length
-int effectsTitleLength = 0;                                             // Interface screen effects title length
-int fxaaLength = 0;                                                     // Interface FXAA effect enabled title length
-int bloomLength = 0;                                                    // Interface bloom effect enabled title length
-int vignetteLength = 0;                                                 // Interface vignette effect enabled title length
-int wireLength = 0;                                                     // Interface wireframe enabled title length
-int logoLength = 0;                                                     // Interface draw logo enabled title length
-int controlsLength = 0;                                                 // Interface controls title length
-int creditsLength = 0;                                                  // Interface credits title length
-int titleLength = 0;                                                    // Interface main title length
-int creditsVictorLength = 0;                                            // Interface credits Victor title length
-int creditsRamonLength = 0;                                             // Interface credits Ramon title length
-int dragLength = 0;                                                     // Interface textures drag title length
-int creditsWebLength = 0;                                               // Interface credits web title length
-int deleteLength = 0;                                                   // Interface textures delete title length
-int displayLength = 0;                                                  // Interface interface display help message length
+
+int textsLength[MAX_TEXTS] = { 0 };                                     // Interface texts length array
 int titlesLength[MAX_TEXTURES] = { 0 };                                 // Interface material properties lengths
 const char *imageExtensions[MAX_SUPPORTED_EXTENSIONS] = {               // Supported image extensions for texture loading
     ".jpg",
@@ -235,10 +234,11 @@ const float renderScales[MAX_RENDER_SCALES] = {                         // Avail
 // Interface settings values
 RenderMode renderMode = DEFAULT;
 RenderScale renderScale = RENDER_SCALE_2X;
-CameraMode cameraType = CAMERA_FREE;
-CameraMode lastCameraType = CAMERA_FREE;
+CameraType cameraType = CAMERA_TYPE_FREE;
+CameraType lastCameraType = CAMERA_TYPE_FREE;
 Texture2D textures[7] = { 0 };
 int selectedLight = -1;
+int screenShotCount = 0;
 bool resetScene = false;
 bool drawGrid = false;
 bool drawWire = false;
@@ -394,7 +394,7 @@ int main()
             camera.target = (Vector3){ 0.0f, 0.5f, 0.0f };
             camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
             camera.fovy = CAMERA_FOV;
-            SetCameraMode(camera, cameraType);
+            SetCameraMode(camera, (((cameraType == CAMERA_TYPE_FREE) ? CAMERA_FREE : CAMERA_ORBITAL)));
             lastCameraType = cameraType;
         }
 
@@ -406,8 +406,9 @@ int main()
             camera.target = (Vector3){ 0.0f, 0.5f, 0.0f };
             camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
             camera.fovy = CAMERA_FOV;
-            cameraType = CAMERA_FREE;
-            SetCameraMode(camera, CAMERA_FREE);
+            cameraType = CAMERA_TYPE_FREE;
+            lastCameraType = cameraType;
+            SetCameraMode(camera, (((cameraType == CAMERA_TYPE_FREE) ? CAMERA_FREE : CAMERA_ORBITAL)));
 
             // Reset current light angle and lights positions
             lightAngle = 0.0f;
@@ -697,12 +698,12 @@ int main()
                 // Draw rPBR logo and title
                 int padding = UI_MENU_PADDING*3 + iconTex.height + UI_MENU_PADDING;
                 DrawTexture(iconTex, GetScreenWidth()/2 - iconTex.width/2, UI_MENU_PADDING*3, WHITE);
-                DrawText(UI_TEXT_TITLE, GetScreenWidth()/2 - titleLength/2, padding, UI_TEXT_SIZE_H3, WHITE);
+                DrawText(UI_TEXT_TITLE, GetScreenWidth()/2 - textsLength[LENGTH_TITLE]/2, padding, UI_TEXT_SIZE_H3, WHITE);
 
                 // Draw controls title
                 padding += UI_MENU_PADDING*3.5f;
-                DrawText(UI_TEXT_CONTROLS, GetScreenWidth()/2 - controlsLength/2, padding, UI_TEXT_SIZE_H1, UI_COLOR_PRIMARY);
-                DrawRectangle(GetScreenWidth()/2 - controlsLength, padding + UI_TEXT_SIZE_H1 + UI_MENU_PADDING/2, controlsLength*2, 2, UI_COLOR_PRIMARY);
+                DrawText(UI_TEXT_CONTROLS, GetScreenWidth()/2 - textsLength[LENGTH_CONTROLS]/2, padding, UI_TEXT_SIZE_H1, UI_COLOR_PRIMARY);
+                DrawRectangle(GetScreenWidth()/2 - textsLength[LENGTH_CONTROLS], padding + UI_TEXT_SIZE_H1 + UI_MENU_PADDING/2, textsLength[LENGTH_CONTROLS]*2, 2, UI_COLOR_PRIMARY);
 
                 // Draw camera controls labels
                 padding += UI_TEXT_SIZE_H1 + UI_MENU_PADDING*2.5f;
@@ -716,16 +717,16 @@ int main()
 
                 // Draw credits title
                 padding += UI_MENU_PADDING*4;
-                DrawText(UI_TEXT_CREDITS, GetScreenWidth()/2 - creditsLength/2, padding, UI_TEXT_SIZE_H1, UI_COLOR_PRIMARY);
-                DrawRectangle(GetScreenWidth()/2 - creditsLength, padding + UI_TEXT_SIZE_H1 + UI_MENU_PADDING/2, creditsLength*2, 2, UI_COLOR_PRIMARY);
+                DrawText(UI_TEXT_CREDITS, GetScreenWidth()/2 - textsLength[LENGTH_CREDITS]/2, padding, UI_TEXT_SIZE_H1, UI_COLOR_PRIMARY);
+                DrawRectangle(GetScreenWidth()/2 - textsLength[LENGTH_CREDITS], padding + UI_TEXT_SIZE_H1 + UI_MENU_PADDING/2, textsLength[LENGTH_CREDITS]*2, 2, UI_COLOR_PRIMARY);
 
                 // Draw credits labels
                 padding += UI_TEXT_SIZE_H2 + UI_MENU_PADDING*2.5f;
-                DrawText(UI_TEXT_CREDITS_VICTOR, GetScreenWidth()/2 - creditsVictorLength/2, padding, UI_TEXT_SIZE_H2, UI_COLOR_SECONDARY);
+                DrawText(UI_TEXT_CREDITS_VICTOR, GetScreenWidth()/2 - textsLength[LENGTH_CREDITS_VICTOR]/2, padding, UI_TEXT_SIZE_H2, UI_COLOR_SECONDARY);
                 padding += UI_TEXT_SIZE_H2 + UI_MENU_PADDING;
-                DrawText(UI_TEXT_CREDITS_RAMON, GetScreenWidth()/2 - creditsRamonLength/2, padding, UI_TEXT_SIZE_H2, UI_COLOR_SECONDARY);
+                DrawText(UI_TEXT_CREDITS_RAMON, GetScreenWidth()/2 - textsLength[LENGTH_CREDITS_RAMON]/2, padding, UI_TEXT_SIZE_H2, UI_COLOR_SECONDARY);
                 padding += UI_TEXT_SIZE_H2 + UI_MENU_PADDING*3;
-                DrawText(UI_TEXT_CREDITS_WEB, GetScreenWidth()/2 - creditsWebLength/2, padding, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
+                DrawText(UI_TEXT_CREDITS_WEB, GetScreenWidth()/2 - textsLength[LENGTH_CREDITS_WEB]/2, padding, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
 
                 // Draw close help menu button and check input
                 if (GuiButton((Rectangle){ GetScreenWidth()/2 - UI_BUTTON_WIDTH/2, GetScreenHeight() - UI_BUTTON_HEIGHT - UI_MENU_PADDING*5, 
@@ -781,7 +782,7 @@ void InitInterface(void)
     LoadGuiStyle(PATH_GUI_STYLE);
 
     // Calculate interface right menu titles lengths
-    texTitleLength = MeasureText(UI_TEXT_TEXTURES_TITLE, UI_TEXT_SIZE_H2);
+    textsLength[LENGTH_TEXTURES_TITLE] = MeasureText(UI_TEXT_TEXTURES_TITLE, UI_TEXT_SIZE_H2);
     titlesLength[0] = MeasureText(textureTitles[0], UI_TEXT_SIZE_H3);
     titlesLength[1] = MeasureText(textureTitles[1], UI_TEXT_SIZE_H3);
     titlesLength[2] = MeasureText(textureTitles[2], UI_TEXT_SIZE_H3);
@@ -791,27 +792,21 @@ void InitInterface(void)
     titlesLength[6] = MeasureText(textureTitles[6], UI_TEXT_SIZE_H3);
 
     // Calculate interface left menu titles lengths
-    matTitleLength = MeasureText(UI_TEXT_MATERIAL_TITLE, UI_TEXT_SIZE_H2);
-    renderTitleLength = MeasureText(UI_TEXT_RENDER_TITLE, UI_TEXT_SIZE_H2);
-    renderScaleLength = MeasureText(UI_TEXT_RENDER_SCALE, UI_TEXT_SIZE_H3);
-    renderModeLength = MeasureText(UI_TEXT_RENDER_MODE, UI_TEXT_SIZE_H3);
-    renderEffectsLength = MeasureText(UI_TEXT_RENDER_EFFECTS, UI_TEXT_SIZE_H3);
-    cameraModeLength = MeasureText(UI_TEXT_CAMERA_MODE, UI_TEXT_SIZE_H3);
-    effectsTitleLength = MeasureText(UI_TEXT_EFFECTS_TITLE, UI_TEXT_SIZE_H2);
-    fxaaLength = MeasureText(UI_TEXT_EFFECTS_FXAA, UI_TEXT_SIZE_H3);
-    bloomLength = MeasureText(UI_TEXT_EFFECTS_BLOOM, UI_TEXT_SIZE_H3);
-    vignetteLength = MeasureText(UI_TEXT_EFFECTS_VIGNETTE, UI_TEXT_SIZE_H3);
-    wireLength = MeasureText(UI_TEXT_EFFECTS_WIRE, UI_TEXT_SIZE_H3);
-    logoLength = MeasureText(UI_TEXT_DRAW_LOGO, UI_TEXT_SIZE_H3);
-    creditsLength = MeasureText(UI_TEXT_CREDITS, UI_TEXT_SIZE_H1);
-    controlsLength = MeasureText(UI_TEXT_CONTROLS, UI_TEXT_SIZE_H1);
-    titleLength = MeasureText(UI_TEXT_TITLE, UI_TEXT_SIZE_H3);
-    creditsVictorLength = MeasureText(UI_TEXT_CREDITS_VICTOR, UI_TEXT_SIZE_H2);
-    creditsRamonLength = MeasureText(UI_TEXT_CREDITS_RAMON, UI_TEXT_SIZE_H2);
-    dragLength = MeasureText(UI_TEXT_DRAG_HERE, UI_TEXT_SIZE_H3);
-    creditsWebLength = MeasureText(UI_TEXT_CREDITS_WEB, UI_TEXT_SIZE_H2);
-    deleteLength = MeasureText(UI_TEXT_DELETE, UI_TEXT_SIZE_H3);
-    displayLength = MeasureText(UI_TEXT_DISPLAY, UI_TEXT_SIZE_H3);
+    textsLength[LENGTH_MATERIAL_TITLE] = MeasureText(UI_TEXT_MATERIAL_TITLE, UI_TEXT_SIZE_H2);
+    textsLength[LENGTH_RENDER_TITLE] = MeasureText(UI_TEXT_RENDER_TITLE, UI_TEXT_SIZE_H2);
+    textsLength[LENGTH_RENDER_SCALE] = MeasureText(UI_TEXT_RENDER_SCALE, UI_TEXT_SIZE_H3);
+    textsLength[LENGTH_RENDER_MODE] = MeasureText(UI_TEXT_RENDER_MODE, UI_TEXT_SIZE_H3);
+    textsLength[LENGTH_RENDER_EFFECTS] = MeasureText(UI_TEXT_RENDER_EFFECTS, UI_TEXT_SIZE_H3);
+    textsLength[LENGTH_EFFECTS_TITLE] = MeasureText(UI_TEXT_EFFECTS_TITLE, UI_TEXT_SIZE_H2);
+    textsLength[LENGTH_CONTROLS] = MeasureText(UI_TEXT_CONTROLS, UI_TEXT_SIZE_H1);
+    textsLength[LENGTH_TITLE] = MeasureText(UI_TEXT_TITLE, UI_TEXT_SIZE_H3);
+    textsLength[LENGTH_CREDITS] = MeasureText(UI_TEXT_CREDITS, UI_TEXT_SIZE_H1);
+    textsLength[LENGTH_CREDITS_VICTOR] = MeasureText(UI_TEXT_CREDITS_VICTOR, UI_TEXT_SIZE_H2);
+    textsLength[LENGTH_CREDITS_RAMON] = MeasureText(UI_TEXT_CREDITS_RAMON, UI_TEXT_SIZE_H2);
+    textsLength[LENGTH_CREDITS_WEB] = MeasureText(UI_TEXT_CREDITS_WEB, UI_TEXT_SIZE_H2);
+    textsLength[LENGTH_DRAG] = MeasureText(UI_TEXT_DRAG_HERE, UI_TEXT_SIZE_H3);
+    textsLength[LENGTH_DELETE] = MeasureText(UI_TEXT_DELETE, UI_TEXT_SIZE_H3);
+    textsLength[LENGTH_DISPLAY] = MeasureText(UI_TEXT_DISPLAY, UI_TEXT_SIZE_H3);
 }
 
 // Draw a light gizmo based on light attributes
@@ -842,8 +837,8 @@ void DrawInterface(Vector2 size, int scrolling)
     DrawRectangle(size.x - UI_MENU_WIDTH - UI_MENU_BORDER, 0, UI_MENU_BORDER, size.y, UI_COLOR_PRIMARY);
 
     // Draw textures title
-    DrawText(UI_TEXT_TEXTURES_TITLE, size.x - UI_MENU_WIDTH + UI_MENU_WIDTH/2 - texTitleLength/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
-    DrawRectangle(size.x - UI_MENU_WIDTH + UI_MENU_WIDTH/2 - texTitleLength/2, padding + UI_MENU_PADDING*2.4f, texTitleLength, 2, UI_COLOR_PRIMARY);
+    DrawText(UI_TEXT_TEXTURES_TITLE, size.x - UI_MENU_WIDTH + UI_MENU_WIDTH/2 - textsLength[LENGTH_TEXTURES_TITLE]/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
+    DrawRectangle(size.x - UI_MENU_WIDTH + UI_MENU_WIDTH/2 - textsLength[LENGTH_TEXTURES_TITLE]/2, padding + UI_MENU_PADDING*2.4f, textsLength[LENGTH_TEXTURES_TITLE], 2, UI_COLOR_PRIMARY);
 
     // Draw textures
     padding = scrolling + UI_MENU_PADDING*2 + UI_MENU_PADDING*2.5f + UI_MENU_PADDING*1.25f;
@@ -861,8 +856,8 @@ void DrawInterface(Vector2 size, int scrolling)
     DrawRectangle(UI_MENU_WIDTH - UI_MENU_BORDER, 0, UI_MENU_BORDER, size.y, UI_COLOR_PRIMARY);
 
     // Draw material title
-    DrawText(UI_TEXT_MATERIAL_TITLE, UI_MENU_WIDTH/2 - matTitleLength/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
-    DrawRectangle(UI_MENU_WIDTH/2 - matTitleLength/2, padding + UI_MENU_PADDING*2.4f, matTitleLength, 2, UI_COLOR_PRIMARY);
+    DrawText(UI_TEXT_MATERIAL_TITLE, UI_MENU_WIDTH/2 - textsLength[LENGTH_MATERIAL_TITLE]/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
+    DrawRectangle(UI_MENU_WIDTH/2 - textsLength[LENGTH_MATERIAL_TITLE]/2, padding + UI_MENU_PADDING*2.4f, textsLength[LENGTH_MATERIAL_TITLE], 2, UI_COLOR_PRIMARY);
 
     // Draw albedo RGB sliders
     padding += UI_MENU_PADDING*2.5f;
@@ -900,25 +895,25 @@ void DrawInterface(Vector2 size, int scrolling)
 
     // Draw render settings title 
     padding += UI_MENU_PADDING*2.5f;
-    DrawText(UI_TEXT_RENDER_TITLE, UI_MENU_WIDTH/2 - renderTitleLength/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
-    DrawRectangle(UI_MENU_WIDTH/2 - renderTitleLength/2, padding + UI_MENU_PADDING*2.4f, renderTitleLength, 2, UI_COLOR_PRIMARY);
+    DrawText(UI_TEXT_RENDER_TITLE, UI_MENU_WIDTH/2 - textsLength[LENGTH_RENDER_TITLE]/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
+    DrawRectangle(UI_MENU_WIDTH/2 - textsLength[LENGTH_RENDER_TITLE]/2, padding + UI_MENU_PADDING*2.4f, textsLength[LENGTH_RENDER_TITLE], 2, UI_COLOR_PRIMARY);
 
     // Draw render scale combo box
     padding += UI_MENU_PADDING*2.5f;
-    DrawText(UI_TEXT_RENDER_SCALE, UI_MENU_WIDTH/2 - renderScaleLength/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
+    DrawText(UI_TEXT_RENDER_SCALE, UI_MENU_WIDTH/2 - textsLength[LENGTH_RENDER_SCALE]/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
     padding += UI_MENU_PADDING*2.25f;
     renderScale = GuiComboBox((Rectangle){ UI_MENU_WIDTH/2 - UI_MENU_WIDTH*0.3f - UI_MENU_WIDTH*0.6f/8, padding, UI_MENU_WIDTH*0.6f, UI_SLIDER_HEIGHT*1.5f }, MAX_RENDER_SCALES, (char **)renderScalesTitles, renderScale);
 
     // Draw render mode combo box
     padding += UI_MENU_PADDING*2.0f;
-    DrawText(UI_TEXT_RENDER_MODE, UI_MENU_WIDTH/2 - renderModeLength/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
+    DrawText(UI_TEXT_RENDER_MODE, UI_MENU_WIDTH/2 - textsLength[LENGTH_RENDER_MODE]/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
     padding += UI_MENU_PADDING*2.25f;
     renderMode = GuiComboBox((Rectangle){ UI_MENU_WIDTH/2 - UI_MENU_WIDTH*0.3f - UI_MENU_WIDTH*0.6f/8, padding, UI_MENU_WIDTH*0.6f, UI_SLIDER_HEIGHT*1.5f }, MAX_RENDER_MODES, (char **)renderModesTitles, renderMode);
 
     // Draw post-processing effects title 
     padding += UI_MENU_PADDING*3;
-    DrawText(UI_TEXT_EFFECTS_TITLE, UI_MENU_WIDTH/2 - effectsTitleLength/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
-    DrawRectangle(UI_MENU_WIDTH/2 - renderTitleLength/2, padding + UI_MENU_PADDING*2.4f, renderTitleLength, 2, UI_COLOR_PRIMARY);
+    DrawText(UI_TEXT_EFFECTS_TITLE, UI_MENU_WIDTH/2 - textsLength[LENGTH_EFFECTS_TITLE]/2, padding + UI_MENU_PADDING, UI_TEXT_SIZE_H2, UI_COLOR_PRIMARY);
+    DrawRectangle(UI_MENU_WIDTH/2 - textsLength[LENGTH_RENDER_TITLE]/2, padding + UI_MENU_PADDING*2.4f, textsLength[LENGTH_RENDER_TITLE], 2, UI_COLOR_PRIMARY);
 
     // Draw FXAA effect enabled state checkbox
     padding += UI_MENU_PADDING*3.75f;
@@ -949,8 +944,7 @@ void DrawInterface(Vector2 size, int scrolling)
     drawGrid = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, UI_TEXT_DRAW_GRID, drawGrid);
 
     // Draw viewport interface help button
-    if (GuiButton((Rectangle){ UI_MENU_WIDTH + UI_MENU_PADDING, GetScreenHeight() - UI_MENU_PADDING - UI_BUTTON_HEIGHT, 
-                   UI_BUTTON_WIDTH, UI_BUTTON_HEIGHT }, UI_TEXT_BUTTON_HELP))
+    if (GuiButton((Rectangle){ UI_MENU_WIDTH + UI_MENU_PADDING, GetScreenHeight() - UI_MENU_PADDING - UI_BUTTON_HEIGHT, UI_BUTTON_WIDTH, UI_BUTTON_HEIGHT }, UI_TEXT_BUTTON_HELP))
     {
         drawHelp = true;
         if (selectedLight != -1) selectedLight = -1;
@@ -958,8 +952,11 @@ void DrawInterface(Vector2 size, int scrolling)
 
     // Draw viewport interface screenshot button
     padding = UI_MENU_WIDTH + UI_MENU_PADDING + UI_BUTTON_WIDTH + UI_MENU_PADDING;
-    if (GuiButton((Rectangle){ padding, GetScreenHeight() - UI_MENU_PADDING - UI_BUTTON_HEIGHT, 
-                   UI_BUTTON_WIDTH, UI_BUTTON_HEIGHT }, UI_TEXT_BUTTON_SS)) TakeScreenshot();
+    if (GuiButton((Rectangle){ padding, GetScreenHeight() - UI_MENU_PADDING - UI_BUTTON_HEIGHT, UI_BUTTON_WIDTH, UI_BUTTON_HEIGHT }, UI_TEXT_BUTTON_SS))
+    {
+        TakeScreenshot(FormatText("rpbr_screenshot_%i.png", screenShotCount));
+        screenShotCount++;
+    }
 
     // Draw viewport interface camera type combo box
     padding += UI_BUTTON_WIDTH + UI_MENU_PADDING;
@@ -971,7 +968,7 @@ void DrawInterface(Vector2 size, int scrolling)
     if (GuiButton((Rectangle){ padding, GetScreenHeight() - UI_MENU_PADDING - UI_BUTTON_HEIGHT, UI_BUTTON_WIDTH, UI_BUTTON_HEIGHT }, UI_TEXT_BUTTON_RESET)) resetScene = true;
 
     // Draw viewport interface display/hide help message
-    DrawText(UI_TEXT_DISPLAY, GetScreenWidth() - UI_MENU_WIDTH - displayLength - 10, GetScreenHeight() - UI_TEXT_SIZE_H3 - 5, UI_TEXT_SIZE_H3, UI_COLOR_BACKGROUND);
+    DrawText(UI_TEXT_DISPLAY, GetScreenWidth() - UI_MENU_WIDTH - textsLength[LENGTH_DISPLAY] - 10, GetScreenHeight() - UI_TEXT_SIZE_H3 - 5, UI_TEXT_SIZE_H3, UI_COLOR_BACKGROUND);
 }
 
 // Draw specific light settings interface
@@ -1025,12 +1022,12 @@ void DrawTextureMap(int id, Texture2D texture, Vector2 position)
         if (CheckCollisionPointRec(GetMousePosition(), rect))
         {
             DrawRectangleRec(rect, Fade(UI_COLOR_SECONDARY, 0.5f));
-            DrawText(UI_TEXT_DELETE, rect.x + rect.width/2 - deleteLength/2, rect.y + rect.height/2 - UI_TEXT_SIZE_H3/2, UI_TEXT_SIZE_H3, UI_COLOR_BACKGROUND);
+            DrawText(UI_TEXT_DELETE, rect.x + rect.width/2 - textsLength[LENGTH_DELETE]/2, rect.y + rect.height/2 - UI_TEXT_SIZE_H3/2, UI_TEXT_SIZE_H3, UI_COLOR_BACKGROUND);
         }
     }
     else
     {
         DrawRectangleRec(rect, UI_COLOR_SECONDARY);
-        DrawText(UI_TEXT_DRAG_HERE, position.x - dragLength/2, position.y, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
+        DrawText(UI_TEXT_DRAG_HERE, position.x - textsLength[LENGTH_DRAG]/2, position.y, UI_TEXT_SIZE_H3, UI_COLOR_PRIMARY);
     }
 }
