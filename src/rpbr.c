@@ -44,11 +44,10 @@
 // Includes
 //----------------------------------------------------------------------------------
 #include "raylib.h"                         // Required for raylib framework
-#include "raymath.h"                        // Required for matrix, vectors and other math functions
 #include "pbrcore.h"                        // Required for lighting, environment and drawing functions
 
 #define RAYGUI_IMPLEMENTATION
-#include "raygui.h"                         // Required for user interface functions
+#include "external/raygui.h"                // Required for user interface functions
 
 //----------------------------------------------------------------------------------
 // Defines
@@ -300,7 +299,7 @@ int main()
     camera.target = (Vector3){ 0.0f, 0.5f, 0.0f };
     camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
     camera.fovy = CAMERA_FOV;
-    SetCameraMode(camera, cameraType);
+    SetCameraMode(camera, (((cameraType == CAMERA_TYPE_FREE) ? CAMERA_FREE : CAMERA_ORBITAL)));
 
     // Define environment attributes
     environment = LoadEnvironment(PATH_TEXTURES_HDR, CUBEMAP_SIZE, IRRADIANCE_SIZE, PREFILTERED_SIZE, BRDF_SIZE);
@@ -969,6 +968,12 @@ void DrawInterface(Vector2 size, int scrolling)
 
     // Draw viewport interface display/hide help message
     DrawText(UI_TEXT_DISPLAY, GetScreenWidth() - UI_MENU_WIDTH - textsLength[LENGTH_DISPLAY] - 10, GetScreenHeight() - UI_TEXT_SIZE_H3 - 5, UI_TEXT_SIZE_H3, UI_COLOR_BACKGROUND);
+
+    // Update metalness and roughness unused color values
+    matPBR.metalness.color.g = matPBR.metalness.color.r;
+    matPBR.metalness.color.b = matPBR.metalness.color.r;
+    matPBR.roughness.color.g = matPBR.roughness.color.r;
+    matPBR.roughness.color.b = matPBR.roughness.color.r;
 }
 
 // Draw specific light settings interface
