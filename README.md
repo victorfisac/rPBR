@@ -33,7 +33,7 @@ _Note: paths to environment and physically based rendering shaders are defined i
 Dependencies
 -----
 
-rPBR uses the following C libraries
+rPBR requires the following C libraries to work:
 
    *  [raylib.h](https://github.com/raysan5/raylib/blob/master/src/raylib.h)     - raylib framework for window management and inputs.
    *  [raygui.h](https://github.com/raysan5/raygui/blob/master/raygui.h)     - raylib user interface drawing functions.
