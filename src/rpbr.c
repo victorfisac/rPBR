@@ -632,13 +632,13 @@ int main()
 
         // Send current mode to PBR shader and enabled screen effects states to post-processing shader
         int shaderMode[1] = { renderMode };
-        // SetShaderValuei(environment.pbrShader, shaderModeLoc, shaderMode, 1);
+        SetShaderValuei(environment.pbrShader, shaderModeLoc, shaderMode, 1);
         shaderMode[0] = enabledFxaa;
-        // SetShaderValuei(fxShader, enabledFxaaLoc, shaderMode, 1);
+        SetShaderValuei(fxShader, enabledFxaaLoc, shaderMode, 1);
         shaderMode[0] = enabledBloom;
-        // SetShaderValuei(fxShader, enabledBloomLoc, shaderMode, 1);
+        SetShaderValuei(fxShader, enabledBloomLoc, shaderMode, 1);
         shaderMode[0] = enabledVignette;
-        // SetShaderValuei(fxShader, enabledVignetteLoc, shaderMode, 1);
+        SetShaderValuei(fxShader, enabledVignetteLoc, shaderMode, 1);
         //--------------------------------------------------------------------------
 
         // Draw
