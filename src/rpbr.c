@@ -12,8 +12,8 @@
 *
 *   Use the following line to compile:
 *
-*   gcc -o $(NAME_PART).exe $(FILE_NAME) -s icon\rpbr_icon -IC:\raylib\raylib\src -LC:\raylib\raylib\release\win32
-*   -LC:\raylib\raylib\src\external\glfw3\lib\win32 -LC:\raylib\raylib\src\external\openal_soft\lib\win32\ -lraylib
+*   gcc -o $(NAME_PART).exe $(FILE_NAME) -s icon\rpbr_icon -I$(CURRENT_DIRECTORY)\external\raylib\src -L$(CURRENT_DIRECTORY)\external\raylib\release\win32
+*   -L$(CURRENT_DIRECTORY)\external\raylib\src\external\glfw3\lib\win32 -L$(CURRENT_DIRECTORY)\external\raylib\src\external\openal_soft\lib\win32\ -lraylib
 *   -lglfw3 -lopengl32 -lgdi32 -lopenal32 -lwinmm -std=c99 -Wl,--subsystem,windows -Wl,-allow-multiple-definition
 *
 *   LICENSE: zlib/libpng
@@ -43,7 +43,7 @@
 //----------------------------------------------------------------------------------
 // Includes
 //----------------------------------------------------------------------------------
-#include "raylib.h"                         // Required for raylib framework
+#include "external\raylib\src\raylib.h"     // Required for raylib framework
 #include "pbrcore.h"                        // Required for lighting, environment and drawing functions
 
 #define RAYGUI_IMPLEMENTATION
@@ -632,13 +632,13 @@ int main()
 
         // Send current mode to PBR shader and enabled screen effects states to post-processing shader
         int shaderMode[1] = { renderMode };
-        SetShaderValuei(environment.pbrShader, shaderModeLoc, shaderMode, 1);
+        // SetShaderValuei(environment.pbrShader, shaderModeLoc, shaderMode, 1);
         shaderMode[0] = enabledFxaa;
-        SetShaderValuei(fxShader, enabledFxaaLoc, shaderMode, 1);
+        // SetShaderValuei(fxShader, enabledFxaaLoc, shaderMode, 1);
         shaderMode[0] = enabledBloom;
-        SetShaderValuei(fxShader, enabledBloomLoc, shaderMode, 1);
+        // SetShaderValuei(fxShader, enabledBloomLoc, shaderMode, 1);
         shaderMode[0] = enabledVignette;
-        SetShaderValuei(fxShader, enabledVignetteLoc, shaderMode, 1);
+        // SetShaderValuei(fxShader, enabledVignetteLoc, shaderMode, 1);
         //--------------------------------------------------------------------------
 
         // Draw
