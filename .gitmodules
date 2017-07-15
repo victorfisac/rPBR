@@ -1,6 +1,0 @@
-[submodule "src/external/raygui"]
-	path = src/external/raygui
-	url = https://github.com/raysan5/raygui
-[submodule "src/external/raygui"]
-	path = src/external/raylib
-	url = https://github.com/victorfisac/raylib
