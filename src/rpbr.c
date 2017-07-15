@@ -43,11 +43,11 @@
 //----------------------------------------------------------------------------------
 // Includes
 //----------------------------------------------------------------------------------
-#include "external\raylib\src\raylib.h"     // Required for raylib framework
-#include "pbrcore.h"                        // Required for lighting, environment and drawing functions
+#include "external\raylib\src\raylib.h"         // Required for raylib framework
+#include "pbrcore.h"                            // Required for lighting, environment and drawing functions
 
 #define RAYGUI_IMPLEMENTATION
-#include "external/raygui.h"                // Required for user interface functions
+#include "external/raygui\src\raygui.h"         // Required for user interface functions
 
 //----------------------------------------------------------------------------------
 // Defines
@@ -72,7 +72,6 @@
 // #define      PATH_TEXTURES_HEIGHT        "resources/textures/cerberus/cerberus_height.png"       // Path to default PBR parallax height texture  (NO AVAILABLE)
 #define         PATH_SHADERS_POSTFX_VS      "resources/shaders/postfx.vs"                           // Path to screen post-processing effects vertex shader
 #define         PATH_SHADERS_POSTFX_FS      "resources/shaders/postfx.fs"                           // Path to screen post-processing effects fragment shader
-#define         PATH_GUI_STYLE              "resources/rpbr_gui.style"                              // Path to rPBR custom GUI style
 
 #define         MAX_TEXTURES                7                   // Max number of supported textures in a PBR material
 #define         MAX_RENDER_SCALES           5                   // Max number of available render scales (RenderScale type)
@@ -777,9 +776,6 @@ int main()
 // Initialize interface texts lengths
 void InitInterface(void)
 {
-    // Load interface style and colors from file
-    LoadGuiStyle(PATH_GUI_STYLE);
-
     // Calculate interface right menu titles lengths
     textsLength[LENGTH_TEXTURES_TITLE] = MeasureText(UI_TEXT_TEXTURES_TITLE, UI_TEXT_SIZE_H2);
     titlesLength[0] = MeasureText(textureTitles[0], UI_TEXT_SIZE_H3);
@@ -829,6 +825,8 @@ void DrawLight(Light light, bool over)
 // Draw interface based on current window dimensions
 void DrawInterface(Vector2 size, int scrolling)
 {
+    // TODO: draw new interface style
+    
     int padding = scrolling;
 
     // Draw interface right menu background
@@ -916,31 +914,38 @@ void DrawInterface(Vector2 size, int scrolling)
 
     // Draw FXAA effect enabled state checkbox
     padding += UI_MENU_PADDING*3.75f;
-    enabledFxaa = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, UI_TEXT_EFFECTS_FXAA, enabledFxaa);
+    enabledFxaa = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, enabledFxaa);
+    // TODO: draw texto for UI_TEXT_EFFECTS_FXAA
 
     // Draw bloom effect enabled state checkbox
     padding += UI_MENU_PADDING*2.0f;
-    enabledBloom = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, UI_TEXT_EFFECTS_BLOOM, enabledBloom);
-
+    enabledBloom = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, enabledBloom);
+    // TODO: draw text for UI_TEXT_EFFECTS_BLOOM
+    
     // Draw vignette effect enabled state checkbox
     padding += UI_MENU_PADDING*2.0f;
-    enabledVignette = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, UI_TEXT_EFFECTS_VIGNETTE, enabledVignette);
-
+    enabledVignette = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, enabledVignette);
+    // TODO: draw text for UI_TEXT_EFFECTS_VIGNETTE
+    
     // Draw wireframe effect enabled state checkbox
     padding += UI_MENU_PADDING*2.0f;
-    drawWire = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, UI_TEXT_EFFECTS_WIRE, drawWire);
+    drawWire = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, drawWire);
+    // TODO: draw text for UI_TEXT_EFFECTS_WIRE
 
     // Draw draw logo enabled state checkbox
     padding += UI_MENU_PADDING*2.0f;
-    drawLogo = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, UI_TEXT_DRAW_LOGO, drawLogo);
+    drawLogo = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, drawLogo);
+    // TODO: draw text for UI_TEXT_DRAW_LOGO
 
     // Draw draw lights enabled state checkbox
     padding += UI_MENU_PADDING*2.0f;
-    drawLights = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, UI_TEXT_DRAW_LIGHTS, drawLights);
+    drawLights = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, drawLights);
+    // TODO: draw text for UI_TEXT_DRAW_LIGHTS
 
     // Draw draw grid enabled state checkbox
     padding += UI_MENU_PADDING*2.0f;
-    drawGrid = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, UI_TEXT_DRAW_GRID, drawGrid);
+    drawGrid = GuiCheckBox((Rectangle){ UI_MENU_PADDING*1.85f, padding, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, drawGrid);
+    // TODO: draw text for UI_TEXT_DRAW_GRID
 
     // Draw viewport interface help button
     if (GuiButton((Rectangle){ UI_MENU_WIDTH + UI_MENU_PADDING, GetScreenHeight() - UI_MENU_PADDING - UI_BUTTON_HEIGHT, UI_BUTTON_WIDTH, UI_BUTTON_HEIGHT }, UI_TEXT_BUTTON_HELP))
@@ -988,8 +993,9 @@ void DrawLightInterface(Light *light)
     padding.x += UI_MENU_PADDING;
     padding.y += UI_MENU_PADDING;
     
-    // Draw light enabled state checkbox
-    light->enabled = GuiCheckBox((Rectangle){ padding.x, padding.y, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, UI_TEXT_LIGHT_ENABLED, light->enabled);
+    // Draw light enabled state checkboxgit 
+    light->enabled = GuiCheckBox((Rectangle){ padding.x, padding.y, UI_CHECKBOX_SIZE, UI_CHECKBOX_SIZE }, light->enabled);
+    // TODO: draw text for UI_TEXT_LIGHT_ENABLED
     padding.y += UI_MENU_PADDING*2;
 
     // Draw light color R channel slider
