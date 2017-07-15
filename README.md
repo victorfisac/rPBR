@@ -29,14 +29,25 @@ The header contains a few customizable define values. I set the values that give
 
 _Note: paths to environment and physically based rendering shaders are defined in pbrcore.h. Check the paths if your program doesn't load shaders properly._
 
+Installation
+-----
+
+rPBR requires raylib and raygui submodules. To add them to the repository we need to use the following commands using Git Shell:
+
+    * cd src/external/raylib
+    * git submodule update --init --recursive
+    * cd ../raygui
+    * git submodule update --init --recursive
+
+It will install the raylib and raygui submodules. Ensure to be in master branch in each submodule to work with a stable version.
 
 Dependencies
 -----
 
 rPBR requires the following C libraries to work:
 
-   *  [raylib.h](https://github.com/raysan5/raylib/blob/master/src/raylib.h)     - raylib framework for window management and inputs.
-   *  [raygui.h](https://github.com/raysan5/raygui/blob/master/raygui.h)     - raylib user interface drawing functions.
+   *  [raylib.h](https://github.com/raysan5/raylib)     - raylib framework for window management and inputs.
+   *  [raygui.h](https://github.com/raysan5/raygui)     - raylib user interface drawing functions.
    *  [math.h](https://github.com/Alexpux/mingw-w64/blob/master/mingw-w64-headers/crt/math.h)       - Math operations functions [powf()].
    *  [stb_image.h](https://github.com/nothings/stb/blob/master/stb_image.h)  - Image loading [Sean Barret].
    *  [glad.h](https://github.com/glfw/glfw/blob/master/deps/glad/glad.h)       - OpenGL API [3.3 Core profile].
