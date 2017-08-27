@@ -28,6 +28,7 @@
 
 # Debug files
 *.dSYM/
+*src/resources/
 
 # =========================
 # Operating System Files
