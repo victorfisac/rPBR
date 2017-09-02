@@ -28,7 +28,8 @@
 
 # Debug files
 *.dSYM/
-*src/resources/
+src/resources/
+src/rpbr.exe
 
 # =========================
 # Operating System Files
