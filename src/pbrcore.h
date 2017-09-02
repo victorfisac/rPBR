@@ -50,7 +50,7 @@
 //----------------------------------------------------------------------------------
 #include <math.h>                           // Required for: powf()
 
-#include "raymath.h"                        // Required for matrix, vectors and other math functions
+#include "external/raylib/src/raymath.h"    // Required for matrix, vectors and other math functions
 #include "external/glad.h"                  // Required for OpenGL API
 
 //----------------------------------------------------------------------------------

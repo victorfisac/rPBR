@@ -43,11 +43,11 @@
 //----------------------------------------------------------------------------------
 // Includes
 //----------------------------------------------------------------------------------
-#include "external\raylib\src\raylib.h"         // Required for raylib framework
+#include "external/raylib/src/raylib.h"         // Required for raylib framework
 #include "pbrcore.h"                            // Required for lighting, environment and drawing functions
 
 #define RAYGUI_IMPLEMENTATION
-#include "external\raygui.h"                    // Required for user interface functions
+#include "external/raygui.h"                    // Required for user interface functions
 
 //----------------------------------------------------------------------------------
 // Defines
