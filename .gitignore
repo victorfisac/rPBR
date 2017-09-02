@@ -28,6 +28,8 @@
 
 # Debug files
 *.dSYM/
+
+# Testing files
 src/resources/
 src/rpbr.exe
 
