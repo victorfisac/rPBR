@@ -26,7 +26,7 @@
 *   rPBR is licensed under an unmodified zlib/libpng license, which is an OSI-certified,
 *   BSD-like license that allows static linking with closed source software:
 *
-*   Copyright (c) 2017 Victor Fisac
+*   Copyright (c) 2017-2020 Victor Fisac
 *
 *   This software is provided "as-is", without any express or implied warranty. In no event
 *   will the authors be held liable for any damages arising from the use of this software.
